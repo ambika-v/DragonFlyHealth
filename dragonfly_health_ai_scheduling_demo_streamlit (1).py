@@ -691,9 +691,9 @@ with _tab2:
     st.markdown("#### Patient Location (for routing)")
     colp1, colp2 = st.columns(2)
     with colp1:
-        patient_lat = st.number_input("Patient lat", value=float(base_order["patient_lat"]))
+        patient_lat = st.number_input("Patient lat", value=float(base_order["patient_lat"]), key="patient_lat_intake")
     with colp2:
-        patient_lon = st.number_input("Patient lon", value=float(base_order["patient_lon"]))
+        patient_lon = st.number_input("Patient lon", value=float(base_order["patient_lon"]), key="patient_lon_intake")
 
     start_base = datetime.now().replace(minute=0, second=0, microsecond=0) + timedelta(hours=2)
     starts = [start_base + timedelta(hours=h) for h in range(0, 72, window_len_hrs)]
@@ -931,10 +931,10 @@ with _tab6:
         # traffic factor 1.0 = normal; >1 = slower
         traffic = st.slider("Traffic multiplier", 0.6, 1.8, 1.1, 0.1)
         jobs_q = st.slider("Active jobs in queue", 0, 6, 2)
-        dist_km_eta = st.number_input("Distance to patient (km)", value=float(base_row.get("distance_km", 18.0)))
+        dist_km_eta = st.number_input("Distance to patient (km)", value=float(base_row.get("distance_km", 18.0)), key="eta_dist_km")
     with c3:
-        plat = st.number_input("Patient lat", value=float(base_row.get("patient_lat", 42.36)))
-        plon = st.number_input("Patient lon", value=float(base_row.get("patient_lon", -71.05)))
+        plat = st.number_input("Patient lat", value=float(base_row.get("patient_lat", 42.36)), key="eta_patient_lat")
+        plon = st.number_input("Patient lon", value=float(base_row.get("patient_lon", -71.05)), key="eta_patient_lon")
         req_skill = equip_meta.get("skill", "general")
         st.metric("Required skill", req_skill)
 
