@@ -66,27 +66,36 @@ LIGHT_BG      = "#F4FAF8"   # very light blue‑green
 
 # Optional logos — add files to your repo under assets/ and they will render automatically
 from pathlib import Path
+import base64
 BASE_DIR = Path(__file__).resolve().parent
 
-# Default guesses
-LOGO_PATH = "assets/dragonfly_logo.png"         # full logo
-LOGO_MARK_PATH = "assets/dragonfly_mark.png"    # compact mark
+# Prefer the filenames you provided
+LOGO_PATH = "assets/dragonflyhealth_logo.jpg"         # full logo
+LOGO_MARK_PATH = "assets/dragonflyhealth_mark.jpg"    # compact mark
 
-# Robust auto-detect: look for .png/.jpg/.jpeg in ./assets and ../assets
-_logo = None
-_mark = None
-for folder in [BASE_DIR / "assets", BASE_DIR.parent / "assets", Path("assets")]:
-    for ext in ["png", "jpg", "jpeg"]:
-        cand = folder / f"dragonfly_logo.{ext}"
-        if cand.exists():
-            _logo = str(cand)
-        cand2 = folder / f"dragonfly_mark.{ext}"
-        if cand2.exists():
-            _mark = str(cand2)
-LOGO_PATH = _logo or LOGO_PATH
-LOGO_MARK_PATH = _mark or LOGO_MARK_PATH
+# Robust auto-detect fallback: look for .png/.jpg/.jpeg in ./assets and ../assets
+if not os.path.exists(LOGO_PATH) or not os.path.exists(LOGO_MARK_PATH):
+    _logo = LOGO_PATH if os.path.exists(LOGO_PATH) else None
+    _mark = LOGO_MARK_PATH if os.path.exists(LOGO_MARK_PATH) else None
+    for folder in [BASE_DIR / "assets", BASE_DIR.parent / "assets", Path("assets")]:
+        for ext in ["png", "jpg", "jpeg", "JPG", "JPEG", "PNG"]:
+            if not _logo:
+                cand = folder / f"dragonflyhealth_logo.{ext}"
+                if cand.exists():
+                    _logo = str(cand)
+            if not _mark:
+                cand2 = folder / f"dragonflyhealth_mark.{ext}"
+                if cand2.exists():
+                    _mark = str(cand2)
+    LOGO_PATH = _logo or LOGO_PATH
+    LOGO_MARK_PATH = _mark or LOGO_MARK_PATH
 
 st.set_page_config(
+    page_title="Dragonfly Health — AI Scheduling Demo",
+    page_icon=LOGO_MARK_PATH if os.path.exists(LOGO_MARK_PATH) else "🧭",
+    layout="wide",
+    initial_sidebar_state="expanded",
+)(
     page_title="Dragonfly Health — AI Scheduling Demo",
     page_icon=LOGO_MARK_PATH if os.path.exists(LOGO_MARK_PATH) else "🧭",
     layout="wide",
@@ -116,6 +125,10 @@ st.markdown(
       *::-webkit-scrollbar-thumb {{ background: {PRIMARY_COLOR}; border-radius: 8px; }}
       *::-webkit-scrollbar-track {{ background: #e6f0ec; }}
       html {{ scrollbar-color: {PRIMARY_COLOR} #e6f0ec; scrollbar-width: thin; }}
+      /* Branded top navbar */
+      .df-nav { background: linear-gradient(90deg, #114E7A 0%, #0F6E86 55%, #14B58A 100%); color: white; padding: 10px 14px; border-radius: 12px; display:flex; align-items:center; gap:12px; margin-bottom: 10px; }
+      .df-nav .df-mark { height: 40px; width:auto; border-radius:8px; background:#ffffff22; padding:4px; }
+      .df-nav .df-title { font-weight:700; font-size:18px; letter-spacing:0.3px; }
     </style>
     """,
     unsafe_allow_html=True,
@@ -154,6 +167,25 @@ PREF_ORDER = ["am", "pm", "eve", "none"]
 CHANNELS = ["app", "call_center", "fax", "portal", "other"]
 EQUIPMENT = ["oxygen_concentrator", "cpap", "bp_monitor", "walker", "wheelchair", "nebulizer"]
 TECH_SKILLS = ["general", "respiratory", "mobility"]
+
+# Simple equipment catalog with prep times, stock and required skill
+EQUIPMENT_CATALOG = {
+    "oxygen_concentrator": {"prep_min": 20, "stock": 14, "skill": "respiratory"},
+    "cpap": {"prep_min": 25, "stock": 9, "skill": "respiratory"},
+    "bp_monitor": {"prep_min": 10, "stock": 22, "skill": "general"},
+    "walker": {"prep_min": 8, "stock": 18, "skill": "mobility"},
+    "wheelchair": {"prep_min": 15, "stock": 11, "skill": "mobility"},
+    "nebulizer": {"prep_min": 15, "stock": 12, "skill": "respiratory"},
+}
+
+# Demo technician roster
+TECHNICIANS = [
+    {"id": "T-101", "name": "Alex R.", "skill": "respiratory", "lat": 42.355, "lon": -71.065, "active_jobs": 3},
+    {"id": "T-102", "name": "Brianna K.", "skill": "mobility", "lat": 42.381, "lon": -71.030, "active_jobs": 1},
+    {"id": "T-103", "name": "Chris D.", "skill": "general", "lat": 42.340, "lon": -71.120, "active_jobs": 2},
+    {"id": "T-104", "name": "Deepa S.", "skill": "respiratory", "lat": 42.470, "lon": -70.990, "active_jobs": 0},
+]
+
 HOSPITALS = [
     {"hospital_id": "DF-BOS-1", "name": "Dragonfly Boston Main", "lat": 42.361, "lon": -71.057},
     {"hospital_id": "DF-BOS-2", "name": "Dragonfly Boston West", "lat": 42.349, "lon": -71.120},
@@ -441,7 +473,65 @@ def load_input_df(upload: io.BytesIO | None) -> pd.DataFrame:
 
 
 # ---------------------------
+# ETA & Technician assignment helpers (AI-ish demo)
+# ---------------------------
+
+def estimate_eta_minutes(distance_km: float, prep_min: int, traffic: float, jobs_queue: int) -> int:
+    """Rough ETA estimator (can be replaced by a trained regressor).
+    travel speed baseline ~ 38 km/h, traffic multiplier ∈ [0.8, 1.6].
+    """
+    base_speed_kmh = 38.0 / max(0.5, min(2.0, traffic))
+    travel_min = (distance_km / max(5.0, base_speed_kmh)) * 60.0
+    queue_min = max(0, jobs_queue - 1) * 12  # ~12 min overhead per queued job
+    return int(round(prep_min + travel_min + queue_min))
+
+
+def best_technicians(patient_lat: float, patient_lon: float, required_skill: str, topn: int = 3):
+    scored = []
+    for tech in TECHNICIANS:
+        skill_ok = (tech["skill"] == required_skill) or (required_skill == "general")
+        dist = haversine_km(patient_lat, patient_lon, tech["lat"], tech["lon"])
+        load_penalty = tech["active_jobs"] * 0.8
+        score = (1.0 / (1.0 + dist)) - (0.05 * load_penalty) + (0.2 if tech["skill"] == required_skill else 0.0)
+        scored.append({"tech": tech, "dist_km": dist, "score": score})
+    scored.sort(key=lambda x: x["score"], reverse=True)
+    return scored[:topn]
+
+# ---------------------------
 # UI Helpers
+# ---------------------------
+
+def _img_b64(path: str) -> str | None:
+    try:
+        with open(path, "rb") as f:
+            return base64.b64encode(f.read()).decode()
+    except Exception:
+        return None
+
+
+def render_navbar():
+    mark_b64 = _img_b64(LOGO_MARK_PATH) if os.path.exists(LOGO_MARK_PATH) else None
+    title_html = "Dragonfly Health — AI Scheduling & Order Coordination"
+    if mark_b64:
+        st.markdown(
+            f"""
+            <div class='df-nav'>
+              <img class='df-mark' src='data:image/jpeg;base64,{mark_b64}' />
+              <div class='df-title'>{title_html}</div>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+    else:
+        st.markdown(
+            f"""
+            <div class='df-nav'>
+              <div class='df-title'>{title_html}</div>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+
 # ---------------------------
 
 def kpi(label: str, value: str, helptext: str = ""):
@@ -498,11 +588,10 @@ with st.sidebar:
 raw_df = load_input_df(upload_buf)
 model, metrics = build_model(raw_df)
 
-# Top banner with logo (main area)
-if os.path.exists(LOGO_PATH):
-    st.image(LOGO_PATH, width=220)
-else:
-    st.markdown("# <span class='brand'>Dragonfly Health</span>", unsafe_allow_html=True)
+# Top navbar (branded)
+render_navbar()
+
+st.markdown("# <span class='brand'>Dragonfly Health</span>", unsafe_allow_html=True)
 
 st.markdown(
     """
@@ -526,8 +615,8 @@ st.markdown("<div class='divider'></div>", unsafe_allow_html=True)
 # ---------------------------
 # Tabs
 # ---------------------------
-_tab1, _tab2, _tab3, _tab4, _tab5 = st.tabs([
-    "📊 Portfolio & Risk Heatmap", "📝 Order Intake + Recommender", "⚙️ What‑If Simulator", "📈 Ops Dashboard", "🚚 Routing (VRP‑lite)",
+_tab1, _tab2, _tab3, _tab4, _tab5, _tab6 = st.tabs([
+    "📊 Portfolio & Risk Heatmap", "📝 Order Intake + Recommender", "⚙️ What‑If Simulator", "📈 Ops Dashboard", "🚚 Routing (VRP‑lite)", "🧰 Equipment • ETA • Technicians",
 ])
 
 # ---------------------------
@@ -824,6 +913,87 @@ with _tab5:
     st.map(map_df.rename(columns={"lon":"longitude","lat":"latitude"}))
 
     st.info("For production: replace VRP‑lite with full OR‑Tools VRPTW (time windows, skills, capacities) and integrate with live calendars.")
+
+# ---------------------------
+# Tab 6: Equipment • ETA • Technicians
+# ---------------------------
+with _tab6:
+    st.subheader("Equipment selection, ETA prediction, and technician assignment")
+
+    # Source parameters from the last created intake (fallbacks to sample row)
+    try:
+        base_row = base_order
+    except NameError:
+        base_row = raw_df.sample(1).iloc[0]
+
+    c1, c2, c3 = st.columns(3)
+    with c1:
+        equip = st.selectbox("Equipment for delivery", options=EQUIPMENT, index=EQUIPMENT.index(base_row["equipment_type"]))
+        equip_meta = EQUIPMENT_CATALOG.get(equip, {"prep_min": 10, "stock": 5, "skill": "general"})
+        st.metric("Stock available", f"{equip_meta['stock']}")
+        st.metric("Prep time (min)", f"{equip_meta['prep_min']}")
+    with c2:
+        # traffic factor 1.0 = normal; >1 = slower
+        traffic = st.slider("Traffic multiplier", 0.6, 1.8, 1.1, 0.1)
+        jobs_q = st.slider("Active jobs in queue", 0, 6, 2)
+        dist_km_eta = st.number_input("Distance to patient (km)", value=float(base_row.get("distance_km", 18.0)))
+    with c3:
+        plat = st.number_input("Patient lat", value=float(base_row.get("patient_lat", 42.36)))
+        plon = st.number_input("Patient lon", value=float(base_row.get("patient_lon", -71.05)))
+        req_skill = equip_meta.get("skill", "general")
+        st.metric("Required skill", req_skill)
+
+    # AI-ish ETA estimation
+    eta_min = estimate_eta_minutes(dist_km_eta, equip_meta["prep_min"], traffic, jobs_q)
+    st.markdown("### ETA prediction")
+    kpi("Estimated time to arrive (min)", f"{eta_min}", helptext="Travel + prep + queue overhead")
+
+    # Recommend technicians
+    st.markdown("### Technician recommendation")
+    top_techs = best_technicians(plat, plon, req_skill, topn=3)
+    for rank, item in enumerate(top_techs, 1):
+        t = item["tech"]
+        st.markdown(
+            f"""
+            <div class='card'>
+               <div style='display:flex;justify-content:space-between;align-items:center;'>
+                 <div>
+                    <span class='pill'>Rank {rank}</span>
+                    <b>{t['name']}</b> — skill: <b>{t['skill']}</b>
+                    <div class='subtle'>Distance ≈ {item['dist_km']:.1f} km • Active jobs: {t['active_jobs']}</div>
+                 </div>
+                 <div style='font-weight:700;color:{ACCENT_COLOR}'>Score {item['score']:.3f}</div>
+               </div>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+
+    # Mock communications (templates)
+    st.markdown("### Communications (templates)")
+    tech_choice = st.selectbox("Assign technician", options=[x["tech"]["id"] + " — " + x["tech"]["name"] for x in top_techs])
+    sel_name = tech_choice.split(" — ")[-1]
+    appt_time = datetime.now() + timedelta(minutes=eta_min)
+
+    msg_patient = (
+        f"Hello! Your Dragonfly Health delivery for {equip.replace('_',' ')} is scheduled today. "
+        f"Your technician {sel_name} is on the way. Estimated arrival: {appt_time.strftime('%I:%M %p')}. "
+        f"Reply 1 to confirm or 2 to reschedule."
+    )
+    msg_tech = (
+        f"Assignment: Deliver {equip.replace('_',' ')}. Patient coords: ({plat:.4f}, {plon:.4f}). "
+        f"ETA {eta_min} min. Prep: {equip_meta['prep_min']} min."
+    )
+    msg_facility = (
+        f"Dispatch notice: {sel_name} assigned to order {base_row['order_id']} for {equip.replace('_',' ')}. "
+        f"ETA to patient ~{eta_min} min."
+    )
+
+    st.text_area("Patient SMS", value=msg_patient, height=90)
+    st.text_area("Technician push note", value=msg_tech, height=90)
+    st.text_area("Facility/Case note", value=msg_facility, height=90)
+
+    st.info("In production, these templates would flow through your comms platform (SMS/push/IVR) with live GPS for ETA updates and confirmations.")
 
 
 st.markdown("<div class='divider'></div>", unsafe_allow_html=True)
