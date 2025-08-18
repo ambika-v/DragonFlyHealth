@@ -1,10 +1,10 @@
 # Dragonfly Health — AI Scheduling Demo (Streamlit)
-# Clean sanitized build — all CSS braces fixed, duplicates removed.
+# PART 1 of 2 — imports, theme, CSS, helpers, EXEC OVERVIEW, data+model
 
 from __future__ import annotations
 import os, io, math, random, base64
 from pathlib import Path
-from datetime import datetime, timedelta, date, time
+from datetime import datetime, timedelta
 
 import numpy as np
 import pandas as pd
@@ -18,7 +18,7 @@ from sklearn.compose import ColumnTransformer
 from sklearn.pipeline import Pipeline
 from sklearn.metrics import roc_auc_score, precision_recall_fscore_support
 
-# Optional: OR-Tools (we fall back to greedy if unavailable)
+# Optional: OR-Tools — we’ll fall back to greedy if not available (used in Part 2)
 try:
     from ortools.constraint_solver import pywrapcp, routing_enums_pb2
     HAS_ORTOOLS = True
@@ -60,7 +60,9 @@ st.set_page_config(
     initial_sidebar_state="expanded",
 )
 
+# ---------------------------
 # Global CSS (escaped braces for f-strings)
+# ---------------------------
 st.markdown(
     f"""
     <style>
@@ -102,9 +104,7 @@ st.markdown(
 # ---------------------------
 
 def _ensure_state():
-    for k, v in {
-        "report_payload": {},
-    }.items():
+    for k, v in {"report_payload": {}}.items():
         if k not in st.session_state:
             st.session_state[k] = v
 
@@ -165,49 +165,27 @@ def datetime_picker(label_prefix: str, default_dt: datetime) -> datetime:
     return datetime.combine(d, t)
 
 
-def _sparkline(values: pd.Series) -> alt.Chart:
-    s = pd.DataFrame({"x": range(len(values)), "y": values})
-    return (
-        alt.Chart(s).mark_line()
-        .encode(x=alt.X("x:Q", axis=None), y=alt.Y("y:Q", axis=None))
-        .properties(height=48)
-    )
-
-
-def _pct(x):
-    try:
-        return f"{100*float(x):.1f}%"
-    except Exception:
-        return "–"
-
+# ---------------------------
+# Executive Overview (visual)
+# ---------------------------
 
 def render_landing(df: pd.DataFrame, model_metrics: dict):
-    if df is None or len(df)==0:
+    """Executive overview with compact tiles + rich visuals (donut, trends, heatmap, capacity bar, micro-map)."""
+    if df is None or len(df) == 0:
         st.info("No data yet.")
         return
-    adj_rate = float(np.clip(df.get("adjusted", pd.Series(np.zeros(len(df)))).astype(int).mean(), 0, 1))
+
+    # KPIs
+    adj_col = df.get("adjusted", pd.Series(np.zeros(len(df)))).astype(int)
+    adj_rate = float(np.clip(adj_col.mean(), 0, 1))
     on_time = 1 - adj_rate
-    stat_share = float((df.get("priority", pd.Series(["Routine"]).repeat(len(df)))=="STAT").mean())
+    stat_share = float((df.get("priority", pd.Series(["Routine"]).repeat(len(df))) == "STAT").mean())
     avg_dist = float(df.get("distance_km", pd.Series([0])).mean())
-    med_eta = int(np.median(np.clip(df.get("distance_km", pd.Series([18])).values/38*60 + 15, 10, 240)))
+    med_eta = int(np.median(np.clip(df.get("distance_km", pd.Series([18])).values / 38 * 60 + 15, 10, 240)))
 
     st.markdown("<div class='df-section'><h3>Today at a glance</h3></div>", unsafe_allow_html=True)
-    labels = ["On-time rate","Adj. rate","% STAT","Avg distance","Median ETA","Model AUC"]
-    values = [ _pct(on_time), _pct(adj_rate), _pct(stat_share), f"{avg_dist:.1f} km", f"{med_eta} min", f"{model_metrics.get('AUC',0):.2f}" ]
-
-    def _trend(series, take=100):
-        s = pd.to_numeric(series, errors="coerce").dropna().tail(take).reset_index(drop=True)
-        if s.empty: s = pd.Series(np.random.normal(0,1,50)).cumsum()
-        return s.rolling(5, min_periods=1).mean()
-
-    trends = [
-        _trend(1-df.get("adjusted", pd.Series(np.zeros(len(df)))).astype(float)),
-        _trend(df.get("adjusted", pd.Series(np.zeros(len(df)))).astype(float)),
-        _trend((df.get("priority", pd.Series(["Routine"]).repeat(len(df)))=="STAT").astype(float)),
-        _trend(df.get("distance_km", pd.Series(np.random.normal(20,5,120)))),
-        _trend(df.get("distance_km", pd.Series(np.random.normal(20,5,120)))/38*60+15),
-        _trend(pd.Series(np.random.normal(model_metrics.get("AUC",0.7), 0.02, 120))),
-    ]
+    labels = ["On-time rate", "Adj. rate", "% STAT", "Avg distance", "Median ETA", "Model AUC"]
+    values = [f"{on_time*100:.1f}%", f"{adj_rate*100:.1f}%", f"{stat_share*100:.1f}%", f"{avg_dist:.1f} km", f"{med_eta} min", f"{model_metrics.get('AUC', 0):.2f}"]
 
     st.markdown("<div class='df-tiles'>", unsafe_allow_html=True)
     for label, value in zip(labels, values):
@@ -217,22 +195,108 @@ def render_landing(df: pd.DataFrame, model_metrics: dict):
         )
     st.markdown("</div>", unsafe_allow_html=True)
 
-    cols = st.columns(6)
-    for c, tr in zip(cols, trends):
-        with c:
-            st.altair_chart(_sparkline(tr), use_container_width=True)
+    # Row 1: Donut (on-time vs adjusted) + Daily volume
+    c1, c2 = st.columns([1, 2])
+    with c1:
+        pie_df = pd.DataFrame({"status": ["On-time", "Adjusted"], "count": [int((1 - adj_col).sum()), int(adj_col.sum())]})
+        pie = (
+            alt.Chart(pie_df)
+            .mark_arc(innerRadius=55)
+            .encode(
+                theta=alt.Theta("count:Q"),
+                color=alt.Color("status:N", legend=None, scale=alt.Scale(range=[ACCENT_COLOR, PRIMARY_COLOR])),
+                tooltip=["status", "count"],
+            )
+            .properties(height=210)
+        )
+        st.altair_chart(pie, use_container_width=True)
+    with c2:
+        dfx = df.copy()
+        ref_ts = pd.to_datetime(dfx.get("scheduled_start", dfx.get("requested_at", datetime.now())))
+        dfx["day"] = ref_ts.dt.date
+        grp = dfx.groupby("day").agg(volume=("order_id", "count")).reset_index()
+        line = (
+            alt.Chart(grp)
+            .mark_line(point=True)
+            .encode(
+                x=alt.X("day:T", title="Day"),
+                y=alt.Y("volume:Q", title="Orders"),
+                tooltip=[alt.Tooltip("day:T", title="Day"), "volume"],
+            )
+            .properties(height=210)
+        )
+        st.altair_chart(line, use_container_width=True)
 
     st.markdown("<div class='divider'></div>", unsafe_allow_html=True)
 
-    if "reason_code" in df.columns:
-        top = df["reason_code"].value_counts().head(6).rename_axis("reason").reset_index(name="count")
-        bar = (
-            alt.Chart(top)
-            .mark_bar()
-            .encode(x=alt.X("reason:N", sort="-y", title="Reason"), y=alt.Y("count:Q", title="Adjustments"), tooltip=["reason","count"]) 
-            .properties(height=240)
+    # Row 2: Heatmap (adj rate by weekday x hour) + Top reasons
+    c3, c4 = st.columns(2)
+    with c3:
+        dft = df.copy()
+        ref_time = pd.to_datetime(dft.get("scheduled_start", dft.get("requested_at", datetime.now())))
+        dft["hour"] = ref_time.dt.hour
+        dft["weekday"] = ref_time.dt.day_name().str.slice(0, 3)
+        heat = (
+            alt.Chart(dft)
+            .mark_rect()
+            .encode(
+                x=alt.X("hour:O", title="Hour of Day"),
+                y=alt.Y("weekday:O", sort=["Mon","Tue","Wed","Thu","Fri","Sat","Sun"], title="Weekday"),
+                color=alt.Color("mean(adjusted):Q", title="Adj. rate", scale=alt.Scale(scheme="greenblue")),
+                tooltip=["weekday", "hour", alt.Tooltip("mean(adjusted):Q", title="Adj. rate", format=".1%")],
+            )
+            .properties(height=260)
         )
-        st.altair_chart(bar, use_container_width=True)
+        st.altair_chart(heat, use_container_width=True)
+    with c4:
+        if "reason_code" in df.columns:
+            top = df["reason_code"].fillna("unknown").value_counts().head(8).rename_axis("reason").reset_index(name="count")
+            bar = (
+                alt.Chart(top)
+                .mark_bar()
+                .encode(
+                    x=alt.X("reason:N", sort="-y", title="Reason"),
+                    y=alt.Y("count:Q", title="Adjustments"),
+                    tooltip=["reason", "count"],
+                )
+                .properties(height=260)
+            )
+            st.altair_chart(bar, use_container_width=True)
+        else:
+            st.info("No reason_code field available.")
+
+    st.markdown("<div class='divider'></div>", unsafe_allow_html=True)
+
+    # Row 3: Capacity bar + Micro map
+    c5, c6 = st.columns([1, 1])
+    with c5:
+        sched_hours = float(pd.to_numeric(df.get("window_len_hrs", pd.Series([4]*len(df)))).sum())
+        crews = max(5, int(len(df) / 60))  # demo heuristic
+        avail_hours = crews * 8
+        util = min(1.8, sched_hours / max(1.0, avail_hours))
+        util_df = pd.DataFrame({"metric":["Capacity Utilization"], "value":[min(util, 1.5)]})
+        util_bar = (
+            alt.Chart(util_df)
+            .mark_bar()
+            .encode(x=alt.X("value:Q", scale=alt.Scale(domain=[0,1.2]), title="Utilization"), y=alt.Y("metric:N", title=""))
+            .properties(height=70)
+        )
+        rule = alt.Chart(pd.DataFrame({"x":[1.0]})).mark_rule(color=PRIMARY_COLOR).encode(x="x:Q")
+        st.altair_chart(util_bar + rule, use_container_width=True)
+        st.caption("Blue line = 100% capacity")
+    with c6:
+        try:
+            ref_ts = pd.to_datetime(df.get("scheduled_start", df.get("requested_at", datetime.now())))
+            recent = df.assign(ts=ref_ts).sort_values("ts", ascending=False).head(40)
+            map_df = pd.DataFrame({
+                "latitude": recent["patient_lat"].astype(float),
+                "longitude": recent["patient_lon"].astype(float),
+            })
+            st.map(map_df)
+        except Exception:
+            st.info("Map preview unavailable for this dataset.")
+
+    st.markdown("<div class='divider'></div>", unsafe_allow_html=True)
 
 # ---------------------------
 # Data generation & loading
@@ -400,7 +464,7 @@ def load_input_df(upload: io.BytesIO | None) -> pd.DataFrame:
     return out
 
 # ---------------------------
-# Modeling & scoring
+# Modeling & scoring (more in Part 2)
 # ---------------------------
 
 def build_model(df: pd.DataFrame):
@@ -454,6 +518,22 @@ def score_slots(order_row: pd.Series, candidate_slots: list[tuple[datetime, date
             "explain":f"SLA:{sla_score:.2f} Load:{load_score:.2f} Dist:{dist_score:.2f} Pref:{pref_match:.2f} RiskPen:{risk_penalty:.2f}",
         })
     return sorted(scored, key=lambda x: x["score"], reverse=True)
+# Dragonfly Health — AI Scheduling Demo (Streamlit)
+# PART 2 of 2 — geo/routing, ETA/tech, report/export, full UI layout
+
+from __future__ import annotations
+import os, io, math, random, base64
+from datetime import datetime, timedelta
+import numpy as np
+import pandas as pd
+import altair as alt
+import streamlit as st
+
+# If Part 1 ran in same file, these exist already; otherwise import them from Part 1
+try:
+    HAS_ORTOOLS
+except NameError:
+    HAS_ORTOOLS = False
 
 # ---------------------------
 # Geo & Routing
@@ -485,6 +565,7 @@ def solve_route(distance_matrix: list[list[int]]):
             last = route[-1]; nxt = min(unvisited, key=lambda j: distance_matrix[last][j])
             route.append(nxt); unvisited.remove(nxt)
         return route
+    from ortools.constraint_solver import pywrapcp, routing_enums_pb2
     manager = pywrapcp.RoutingIndexManager(n, 1, 0)
     routing = pywrapcp.RoutingModel(manager)
     def cb(fi, ti):
@@ -542,14 +623,10 @@ def build_report_html(payload: dict) -> bytes:
     </style>
     """
     def esc(x):
-        try:
-            return str(x).replace("&","&amp;").replace("<","&lt;").replace(">","&gt;")
-        except Exception:
-            return str(x)
-
+        try: return str(x).replace("&","&amp;").replace("<","&lt;").replace(">","&gt;")
+        except Exception: return str(x)
     sec = payload or {}
     html = [css, "<h1>Dragonfly Health — Scheduling Run</h1>"]
-
     html.append(
         "<div class='card'><div class='muted'>Order</div>"
         f"<div><span class='k'>Order ID:</span> {esc(sec.get('order_id',''))}</div>"
@@ -557,20 +634,17 @@ def build_report_html(payload: dict) -> bytes:
         f"<div><span class='k'>Due by:</span> {esc(sec.get('due_by',''))}</div>"
         f"<div><span class='k'>Window:</span> {esc(sec.get('window_len',''))} hrs</div></div>"
     )
-
     html.append(
         "<div class='card'><div class='muted'>Recommended Slot</div>"
         f"<div><span class='k'>Start:</span> {esc(sec.get('slot_start',''))} → <span class='k'>End:</span> {esc(sec.get('slot_end',''))}</div>"
         f"<div><span class='k'>Score:</span> {esc(sec.get('score',''))} • <span class='k'>Risk:</span> {esc(sec.get('risk',''))}</div></div>"
     )
-
     if sec.get('eta_min') is not None:
         html.append(
             "<div class='card'><div class='muted'>ETA & Technician</div>"
             f"<div><span class='k'>ETA:</span> {esc(sec.get('eta_min'))} min</div>"
             f"<div><span class='k'>Technician:</span> {esc(sec.get('technician',''))}</div></div>"
         )
-
     html.append(f"<div class='muted'>Generated: {datetime.now().strftime('%Y-%m-%d %H:%M')}</div>")
     return "\n".join(html).encode("utf-8")
 
@@ -582,12 +656,13 @@ def run_demo_status():
         status.update(label="Training lightweight risk model", state="running"); _t.sleep(0.6)
         status.update(label="Generating recommended slots", state="running"); _t.sleep(0.6)
         status.update(label="Scoring ETA and recommending technicians", state="running"); _t.sleep(0.6)
-        status.update(label="Done — open Tabs 2 & 6 to view", state="complete")
+        status.update(label="Done — open Tabs 2 & 4 to view", state="complete")
     st.toast("Demo ready: open 'Order Intake + Recommender' and 'Equipment • ETA • Technicians'", icon="✅")
 
 # ---------------------------
-# App Layout
+# App Layout (wire these blocks to the Part 1 functions/vars)
 # ---------------------------
+
 render_navbar()
 
 with st.sidebar:
@@ -612,7 +687,7 @@ with right:
     st.write({k:f"{v:.3f}" for k,v in metrics.items()})
 
 # Tabs
-_tab1, _tab2, _tab5, _tab6 = st.tabs([
+_tab1, _tab2, _tab3, _tab4 = st.tabs([
     "📊 Executive Overview", "📝 Order Intake + Recommender", "🚚 Routing (VRP‑lite)", "🧰 Equipment • ETA • Technicians",
 ])
 
@@ -634,8 +709,14 @@ with _tab2:
         resource_load = st.slider("Resource load", 0.0, 1.0, float(base.get("resource_load", 0.6)), 0.05, key="intake_load")
         patient_pref = st.selectbox("Patient pref", PREF_ORDER, index=PREF_ORDER.index(str(base.get("patient_pref","none"))))
     with c3:
-        requested_at = datetime_picker("Requested at", default_dt=pd.to_datetime(base["requested_at"]).to_pydatetime())
-        due_by       = datetime_picker("Due by",       default_dt=pd.to_datetime(base["due_by"]).to_pydatetime())
+        from datetime import datetime as _dt
+        def _dtpick(lbl, default):
+            c1, c2 = st.columns(2)
+            with c1: d = st.date_input(f"{lbl} — Date", value=pd.to_datetime(default).date())
+            with c2: t = st.time_input(f"{lbl} — Time", value=pd.to_datetime(default).time())
+            return _dt.combine(d, t)
+        requested_at = _dtpick("Requested at", base["requested_at"])  
+        due_by       = _dtpick("Due by",       base["due_by"])        
         window_len_hrs = st.select_slider("Window length (hrs)", options=[2,4,6], value=int(base.get("window_len_hrs",4)))
 
     now = datetime.now().replace(minute=0, second=0, microsecond=0)
@@ -650,30 +731,26 @@ with _tab2:
     })
     risk = float(model.predict_proba(feat_row)[:,1])
 
-    order_like = pd.Series({
-        "due_by": due_by, "distance_km": distance_km, "resource_load": resource_load, "patient_pref": patient_pref,
-    })
+    order_like = pd.Series({"due_by": due_by, "distance_km": distance_km, "resource_load": resource_load, "patient_pref": patient_pref})
     scored = score_slots(order_like, cand)
     top = scored[:5]
 
-    # Save for export
-    chosen = top[0]
     st.session_state["report_payload"].update({
         "order_id": order_id,
         "priority": priority,
         "equipment": equipment_type,
         "due_by": due_by.strftime('%Y-%m-%d %H:%M'),
         "window_len": window_len_hrs,
-        "slot_start": chosen["slot_start"].strftime('%Y-%m-%d %H:%M'),
-        "slot_end": chosen["slot_end"].strftime('%Y-%m-%d %H:%M'),
-        "score": f"{chosen['score']:.2f}",
+        "slot_start": top[0]["slot_start"].strftime('%Y-%m-%d %H:%M'),
+        "slot_end": top[0]["slot_end"].strftime('%Y-%m-%d %H:%M'),
+        "score": f"{top[0]['score']:.2f}",
         "risk": f"{risk:.2%}",
     })
 
     k1,k2,k3 = st.columns(3)
-    with k1: kpi("Top slot score", f"{top[0]['score']:.2f}", "Higher is better")
-    with k2: kpi("Predicted adjustment risk", f"{risk:.1%}")
-    with k3: kpi("Window length", f"{window_len_hrs}h")
+    with k1: st.metric("Top slot score", f"{top[0]['score']:.2f}")
+    with k2: st.metric("Predicted adjustment risk", f"{risk:.1%}")
+    with k3: st.metric("Window length", f"{window_len_hrs}h")
 
     st.markdown("### Recommendations")
     for i, rec in enumerate(top, 1):
@@ -692,7 +769,7 @@ with _tab2:
         )
 
 # Routing (VRP‑lite)
-with _tab5:
+with _tab3:
     st.subheader("Route planning from facility → patients (demo)")
     h_opts = {h["hospital_id"]:h for h in HOSPITALS}
     h_sel = st.selectbox("Facility", options=list(h_opts.keys()), format_func=lambda x: f"{x} — {h_opts[x]['name']}", key="facility_routing")
@@ -720,7 +797,7 @@ with _tab5:
         st.markdown(f"{step}. **{label}**")
 
     total_km = sum(haversine_km(pts[route_idx[i]][0], pts[route_idx[i]][1], pts[route_idx[i+1]][0], pts[route_idx[i+1]][1]) for i in range(len(route_idx)-1))
-    kpi("Total distance (km)", f"{total_km:.1f}")
+    st.metric("Total distance (km)", f"{total_km:.1f}")
 
     st.markdown("#### Map (lat/lon preview)")
     map_df = pd.DataFrame({
@@ -733,7 +810,7 @@ with _tab5:
     st.info("For production: upgrade to OR‑Tools VRPTW with time windows, skills, capacities.")
 
 # Equipment • ETA • Technicians
-with _tab6:
+with _tab4:
     st.subheader("Equipment selection, ETA prediction, technician assignment")
     base_row = raw_df.sample(1).iloc[0]
 
@@ -755,7 +832,7 @@ with _tab6:
 
     eta_min = estimate_eta_minutes(dist_km_eta, equip_meta["prep_min"], traffic, jobs_q)
     st.markdown("### ETA prediction")
-    kpi("Estimated time to arrive (min)", f"{eta_min}", helptext="Travel + prep + queue overhead")
+    st.metric("Estimated time to arrive (min)", f"{eta_min}")
 
     st.markdown("### Technician recommendation")
     top_techs = best_technicians(plat, plon, req_skill, topn=3)
