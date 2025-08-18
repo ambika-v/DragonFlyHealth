@@ -17,13 +17,15 @@ Notes
   for mappings and fallbacks.
 - The "AI" portion includes a lightweight logistic-regression model to predict appointment adjustment
   probability, plus a slot scorer that balances SLA risk, resource load, patient preferences, and travel distance.
-- New in this version: **Hospital → Patient Profile → Equipment → Slot & Route** flow, and a **VRP‑lite** routing tab.
+- New in this version: **Hospital → Patient Profile → Equipment → Slot & Route** flow, a **VRP‑lite** routing tab,
+  **date+time pickers** (no `st.datetime_input`), and a **blue+green Dragonfly theme** with logo auto-detect.
 - The code is organized for clarity rather than micro-optimizations; swap the model and scoring functions
   with your production counterparts later.
 
 Branding
 --------
-- Edit `PRIMARY_COLOR`, `ACCENT_COLOR`, logos, and titles to match Dragonfly branding.
+- Place logos in `assets/dragonfly_logo.(png|jpg|jpeg)` and `assets/dragonfly_mark.(png|jpg|jpeg)`.
+- Colors live in `PRIMARY_COLOR` (blue) and `ACCENT_COLOR` (green).
 
 """
 
@@ -33,8 +35,7 @@ import io
 import math
 import random
 from dataclasses import dataclass
-from datetime import datetime, timedelta
-from dateutil import tz
+from datetime import datetime, date, time, timedelta
 
 import numpy as np
 import pandas as pd
@@ -59,9 +60,9 @@ except Exception:
 # ---------------------------
 PRIMARY_COLOR = "#114E7A"   # Dragonfly blue
 ACCENT_COLOR  = "#14B58A"   # Dragonfly green
-WARN_COLOR    = "#8FD3C8"   # muted teal (was amber)
-ALERT_COLOR   = "#2E8B57"   # deep green (was pink/red)
-LIGHT_BG      = "#F4FAF8"    # very light blue‑green
+WARN_COLOR    = "#8FD3C8"   # muted teal
+ALERT_COLOR   = "#2E8B57"   # deep green
+LIGHT_BG      = "#F4FAF8"   # very light blue‑green
 
 # Optional logos — add files to your repo under assets/ and they will render automatically
 LOGO_PATH = "assets/dragonfly_logo.png"         # full logo
@@ -72,8 +73,6 @@ for _ext in ["png", "jpg", "jpeg"]:
         LOGO_PATH = f"assets/dragonfly_logo.{_ext}"
     if os.path.exists(f"assets/dragonfly_mark.{_ext}"):
         LOGO_MARK_PATH = f"assets/dragonfly_mark.{_ext}"
-
-
 
 st.set_page_config(
     page_title="Dragonfly Health — AI Scheduling Demo",
@@ -96,10 +95,15 @@ st.markdown(
       .card {{ background:white; padding:16px; border-radius:16px; box-shadow: 0 2px 10px rgba(0,0,0,0.05); }}
       .subtle {{ color:#4d6672; font-size:13px; }}
       .divider {{ height:1px; background:#e6f0ec; margin:8px 0 16px; }}
-      /* buttons */
+      /* Buttons */
       div.stButton>button:first-child {{ background:{PRIMARY_COLOR}; color:white; border-radius:10px; }}
-      /* sliders */
+      /* Sliders */
       .stSlider [data-baseweb="slider"]>div>div {{ background:{ACCENT_COLOR}22; }}
+      /* Scrollbars (blue) */
+      *::-webkit-scrollbar {{ width: 10px; height: 10px; }}
+      *::-webkit-scrollbar-thumb {{ background: {PRIMARY_COLOR}; border-radius: 8px; }}
+      *::-webkit-scrollbar-track {{ background: #e6f0ec; }}
+      html {{ scrollbar-color: {PRIMARY_COLOR} #e6f0ec; scrollbar-width: thin; }}
     </style>
     """,
     unsafe_allow_html=True,
@@ -441,12 +445,24 @@ def kpi(label: str, value: str, helptext: str = ""):
     )
 
 
+def datetime_picker(label_prefix: str, default_dt: datetime) -> datetime:
+    """Streamlit-compatible date+time inputs (since st.datetime_input isn't universal)."""
+    c1, c2 = st.columns(2)
+    with c1:
+        d = st.date_input(f"{label_prefix} — Date", value=default_dt.date())
+    with c2:
+        t = st.time_input(f"{label_prefix} — Time", value=default_dt.time())
+    return datetime.combine(d, t)
+
+
 # ---------------------------
 # Sidebar — Controls
 # ---------------------------
 with st.sidebar:
     if os.path.exists(LOGO_PATH):
         st.image(LOGO_PATH, caption="Dragonfly Health", use_column_width=True)
+    else:
+        st.markdown("## <span class='brand'>Dragonfly Health</span>", unsafe_allow_html=True)
     st.markdown(f"# 🧭 <span class='brand'>AI Scheduling</span>", unsafe_allow_html=True)
     st.caption("Demo: Automated order coordination for DME deliveries")
 
@@ -473,12 +489,16 @@ model, metrics = build_model(raw_df)
 # Top banner with logo (main area)
 if os.path.exists(LOGO_PATH):
     st.image(LOGO_PATH, width=220)
+else:
+    st.markdown("# <span class='brand'>Dragonfly Health</span>", unsafe_allow_html=True)
 
-st.markdown("""
+st.markdown(
+    """
 # Dragonfly Health — AI Scheduling & Order Coordination
 
 A lightweight showcase of how AI can reduce *reschedules*, protect *SLA compliance*, and improve *route efficiency* for DME deliveries.
-""")
+"""
+)
 
 with st.container():
     cols = st.columns(4)
@@ -564,8 +584,8 @@ with _tab2:
         channel = st.selectbox("Channel", CHANNELS, index=CHANNELS.index(base_order["channel"]))
         tech_skill = st.selectbox("Required skill", TECH_SKILLS, index=TECH_SKILLS.index(base_order["tech_skill"]))
     with col3:
-        requested_at = st.datetime_input("Requested at", value=pd.to_datetime(base_order["requested_at"]).to_pydatetime().replace(tzinfo=None))
-        due_by = st.datetime_input("SLA due by", value=pd.to_datetime(base_order["due_by"]).to_pydatetime().replace(tzinfo=None))
+        requested_at = datetime_picker("Requested at", pd.to_datetime(base_order["requested_at"]).to_pydatetime())
+        due_by = datetime_picker("SLA due by", pd.to_datetime(base_order["due_by"]).to_pydatetime())
         window_len_hrs = st.select_slider("Window length (hrs)", options=[2,4,6], value=int(base_order["window_len_hrs"]))
     with col4:
         hospital_id = st.selectbox("Facility", [h["hospital_id"]+" — "+h["name"] for h in HOSPITALS], index=0)
@@ -696,7 +716,7 @@ with _tab3:
         y=alt.Y("Metric:N"),
         color=alt.Color("Scenario:N", scale=alt.Scale(range=[PRIMARY_COLOR, ACCENT_COLOR])),
         tooltip=["Metric","Scenario","Value"]
-    ).properties(height=220).properties(height=220)
+    ).properties(height=220)
     st.altair_chart(bar, use_container_width=True)
 
 
@@ -713,13 +733,13 @@ with _tab4:
         avg_distance=("distance_km","mean"),
     ).reset_index()
 
-    line1 = alt.Chart(agg).mark_line(point=True).encode(
+    line1 = alt.Chart(agg).mark_line(point=True, color=PRIMARY_COLOR).encode(
         x=alt.X("day:T", title="Day"),
         y=alt.Y("orders:Q", title="Orders"),
         tooltip=["day","orders"]
     ).properties(height=220)
 
-    line2 = alt.Chart(agg).mark_line(point=True).encode(
+    line2 = alt.Chart(agg).mark_line(point=True, color=ACCENT_COLOR).encode(
         x="day:T",
         y=alt.Y("avg_distance:Q", title="Avg Distance (km)"),
         tooltip=["day","avg_distance"]
