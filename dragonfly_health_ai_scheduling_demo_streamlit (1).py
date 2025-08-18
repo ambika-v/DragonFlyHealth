@@ -57,15 +57,27 @@ except Exception:
 # ---------------------------
 # Theming & Branding
 # ---------------------------
-PRIMARY_COLOR = "#1D3557"  # Deep blue
-ACCENT_COLOR = "#06D6A0"    # Green
-WARN_COLOR = "#FFD166"      # Amber
-ALERT_COLOR = "#EF476F"     # Pink/Red
-LIGHT_BG = "#F7FAFC"
+PRIMARY_COLOR = "#114E7A"   # Dragonfly blue
+ACCENT_COLOR  = "#14B58A"   # Dragonfly green
+WARN_COLOR    = "#8FD3C8"   # muted teal (was amber)
+ALERT_COLOR   = "#2E8B57"   # deep green (was pink/red)
+LIGHT_BG      = "#F4FAF8"    # very light blue‑green
+
+# Optional logos — add files to your repo under assets/ and they will render automatically
+LOGO_PATH = "assets/dragonfly_logo.png"         # full logo
+LOGO_MARK_PATH = "assets/dragonfly_mark.png"    # compact mark
+# Auto-detect .png/.jpg/.jpeg
+for _ext in ["png", "jpg", "jpeg"]:
+    if os.path.exists(f"assets/dragonfly_logo.{_ext}"):
+        LOGO_PATH = f"assets/dragonfly_logo.{_ext}"
+    if os.path.exists(f"assets/dragonfly_mark.{_ext}"):
+        LOGO_MARK_PATH = f"assets/dragonfly_mark.{_ext}"
+
+
 
 st.set_page_config(
     page_title="Dragonfly Health — AI Scheduling Demo",
-    page_icon="🧭",
+    page_icon=LOGO_MARK_PATH if os.path.exists(LOGO_MARK_PATH) else "🧭",
     layout="wide",
     initial_sidebar_state="expanded",
 )
@@ -74,7 +86,7 @@ st.markdown(
     f"""
     <style>
       .main {{ background: {LIGHT_BG}; }}
-      .stApp header {{ background: white; border-bottom: 1px solid #eee; }}
+      .stApp header {{ background: white; border-bottom: 1px solid #e6f0ec; }}
       .metric-row {{ display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }}
       .pill {{ display:inline-block; padding:4px 10px; border-radius:20px; background:{PRIMARY_COLOR}; color:white; font-size:12px; }}
       .brand {{ color: {PRIMARY_COLOR}; }}
@@ -82,8 +94,12 @@ st.markdown(
       .warn {{ color: {WARN_COLOR}; }}
       .alert {{ color: {ALERT_COLOR}; }}
       .card {{ background:white; padding:16px; border-radius:16px; box-shadow: 0 2px 10px rgba(0,0,0,0.05); }}
-      .subtle {{ color:#5f6b7a; font-size:13px; }}
-      .divider {{ height:1px; background:#eee; margin:8px 0 16px; }}
+      .subtle {{ color:#4d6672; font-size:13px; }}
+      .divider {{ height:1px; background:#e6f0ec; margin:8px 0 16px; }}
+      /* buttons */
+      div.stButton>button:first-child {{ background:{PRIMARY_COLOR}; color:white; border-radius:10px; }}
+      /* sliders */
+      .stSlider [data-baseweb="slider"]>div>div {{ background:{ACCENT_COLOR}22; }}
     </style>
     """,
     unsafe_allow_html=True,
@@ -146,7 +162,7 @@ def _jitter(base: float, spread: float = 0.06):
 def make_synthetic(n_orders: int = 1500, start_date: datetime | None = None) -> pd.DataFrame:
     """Create a realistic-ish synthetic dataset for the demo, including hospital, patient, equipment, and locations."""
     if start_date is None:
-        start_date = datetime.now(tz.tzlocal()) - timedelta(days=60)
+        start_date = datetime.now() - timedelta(days=60)
 
     rows = []
     for i in range(n_orders):
@@ -429,6 +445,8 @@ def kpi(label: str, value: str, helptext: str = ""):
 # Sidebar — Controls
 # ---------------------------
 with st.sidebar:
+    if os.path.exists(LOGO_PATH):
+        st.image(LOGO_PATH, caption="Dragonfly Health", use_column_width=True)
     st.markdown(f"# 🧭 <span class='brand'>AI Scheduling</span>", unsafe_allow_html=True)
     st.caption("Demo: Automated order coordination for DME deliveries")
 
@@ -452,8 +470,12 @@ with st.sidebar:
 raw_df = load_input_df(upload_buf)
 model, metrics = build_model(raw_df)
 
+# Top banner with logo (main area)
+if os.path.exists(LOGO_PATH):
+    st.image(LOGO_PATH, width=220)
+
 st.markdown("""
-# 🚑 Dragonfly Health — AI Scheduling & Order Coordination
+# Dragonfly Health — AI Scheduling & Order Coordination
 
 A lightweight showcase of how AI can reduce *reschedules*, protect *SLA compliance*, and improve *route efficiency* for DME deliveries.
 """)
@@ -494,7 +516,7 @@ with _tab1:
 
     left, right = st.columns([2,1])
     with left:
-        hist = alt.Chart(df).mark_bar().encode(
+        hist = alt.Chart(df).mark_bar(color=PRIMARY_COLOR).encode(
             x=alt.X("risk:Q", bin=alt.Bin(maxbins=30), title="Predicted adjustment probability"),
             y=alt.Y("count():Q", title="Orders"),
             tooltip=["count()"]
@@ -512,7 +534,7 @@ with _tab1:
     heatmap = alt.Chart(heat).mark_rect().encode(
         x=alt.X("window_len_hrs:O", title="Window length (hrs)"),
         y=alt.Y("priority:N", sort=PRIORITY_ORDER),
-        color=alt.Color("risk:Q", scale=alt.Scale(scheme="redyellowgreen", domain=[1,0])),
+        color=alt.Color("risk:Q", scale=alt.Scale(scheme="tealblues", domain=[0,1])),
         tooltip=["priority","window_len_hrs","risk"]
     ).properties(height=220)
     st.altair_chart(heatmap, use_container_width=True)
@@ -542,8 +564,8 @@ with _tab2:
         channel = st.selectbox("Channel", CHANNELS, index=CHANNELS.index(base_order["channel"]))
         tech_skill = st.selectbox("Required skill", TECH_SKILLS, index=TECH_SKILLS.index(base_order["tech_skill"]))
     with col3:
-        requested_at = st.datetime_input("Requested at", value=pd.to_datetime(base_order["requested_at"]).to_pydatetime())
-        due_by = st.datetime_input("SLA due by", value=pd.to_datetime(base_order["due_by"]).to_pydatetime())
+        requested_at = st.datetime_input("Requested at", value=pd.to_datetime(base_order["requested_at"]).to_pydatetime().replace(tzinfo=None))
+        due_by = st.datetime_input("SLA due by", value=pd.to_datetime(base_order["due_by"]).to_pydatetime().replace(tzinfo=None))
         window_len_hrs = st.select_slider("Window length (hrs)", options=[2,4,6], value=int(base_order["window_len_hrs"]))
     with col4:
         hospital_id = st.selectbox("Facility", [h["hospital_id"]+" — "+h["name"] for h in HOSPITALS], index=0)
@@ -557,7 +579,7 @@ with _tab2:
     with colp2:
         patient_lon = st.number_input("Patient lon", value=float(base_order["patient_lon"]))
 
-    start_base = datetime.now(tz.tzlocal()).replace(minute=0, second=0, microsecond=0) + timedelta(hours=2)
+    start_base = datetime.now().replace(minute=0, second=0, microsecond=0) + timedelta(hours=2)
     starts = [start_base + timedelta(hours=h) for h in range(0, 72, window_len_hrs)]
     candidates = [(s, s + timedelta(hours=window_len_hrs)) for s in starts]
 
@@ -672,9 +694,9 @@ with _tab3:
     ).mark_bar().encode(
         x=alt.X("Value:Q"),
         y=alt.Y("Metric:N"),
-        color=alt.Color("Scenario:N"),
+        color=alt.Color("Scenario:N", scale=alt.Scale(range=[PRIMARY_COLOR, ACCENT_COLOR])),
         tooltip=["Metric","Scenario","Value"]
-    ).properties(height=220)
+    ).properties(height=220).properties(height=220)
     st.altair_chart(bar, use_container_width=True)
 
 
@@ -709,7 +731,7 @@ with _tab4:
 
     st.markdown("#### By Channel")
     by_ch = raw_df.groupby("channel").agg(orders=("order_id","count")).reset_index()
-    ch_bar = alt.Chart(by_ch).mark_bar().encode(
+    ch_bar = alt.Chart(by_ch).mark_bar(color=ACCENT_COLOR).encode(
         x=alt.X("orders:Q", title="Orders"),
         y=alt.Y("channel:N", title="Channel"),
         tooltip=["channel","orders"]
