@@ -93,7 +93,10 @@ if not os.path.exists(LOGO_PATH) or not os.path.exists(LOGO_MARK_PATH):
 st.set_page_config(
     page_title="Dragonfly Health — AI Scheduling Demo",
     page_icon=LOGO_MARK_PATH if os.path.exists(LOGO_MARK_PATH) else "🧭",
-    layou
+    layout="wide",
+    initial_sidebar_state="expanded",
+)
+
 st.markdown(
     f"""
     <style>
