@@ -600,7 +600,7 @@ with _tab2:
         due_by = datetime_picker("SLA due by", pd.to_datetime(base_order["due_by"]).to_pydatetime())
         window_len_hrs = st.select_slider("Window length (hrs)", options=[2,4,6], value=int(base_order["window_len_hrs"]))
     with col4:
-        hospital_id = st.selectbox("Facility", [h["hospital_id"]+" — "+h["name"] for h in HOSPITALS], index=0)
+        hospital_id = st.selectbox("Facility", [h["hospital_id"]+" — "+h["name"] for h in HOSPITALS], index=0, key="facility_intake")
         _, hname = hospital_id.split(" — ")
         reason_code = st.selectbox("Reason code", ["none","patient_req","routing_opt","provider_sched","missing_info","insurance_hold"], index=0)
 
@@ -781,7 +781,7 @@ with _tab5:
 
     # Facility pick
     h_opts = {h["hospital_id"]: h for h in HOSPITALS}
-    h_sel = st.selectbox("Facility", options=list(h_opts.keys()), format_func=lambda x: f"{x} — {h_opts[x]['name']}")
+    h_sel = st.selectbox("Facility", options=list(h_opts.keys()), format_func=lambda x: f"{x} — {h_opts[x]['name']}", key="facility_routing")
     h_lat, h_lon = h_opts[h_sel]["lat"], h_opts[h_sel]["lon"]
 
     # Choose a seed order near the facility
