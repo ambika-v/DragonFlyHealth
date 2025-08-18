@@ -594,7 +594,7 @@ render_navbar()
 
 with st.sidebar:
     if os.path.exists(LOGO_PATH):
-        st.image(LOGO_PATH, use_column_width=True)
+        st.image(LOGO_PATH, use_container_width=True)
     st.markdown("---")
     if st.button("▶ Play demo", use_container_width=True):
         run_demo_status()
