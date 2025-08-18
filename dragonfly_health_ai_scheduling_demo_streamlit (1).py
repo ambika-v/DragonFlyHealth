@@ -95,11 +95,6 @@ st.set_page_config(
     page_icon=LOGO_MARK_PATH if os.path.exists(LOGO_MARK_PATH) else "🧭",
     layout="wide",
     initial_sidebar_state="expanded",
-)(
-    page_title="Dragonfly Health — AI Scheduling Demo",
-    page_icon=LOGO_MARK_PATH if os.path.exists(LOGO_MARK_PATH) else "🧭",
-    layout="wide",
-    initial_sidebar_state="expanded",
 )
 
 st.markdown(
