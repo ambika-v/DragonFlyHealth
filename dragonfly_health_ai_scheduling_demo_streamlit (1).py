@@ -100,7 +100,7 @@ st.set_page_config(
 st.markdown(
     f"""
     <style>
-      .main {{ background: {LIGHT_BG}; }}}
+      .main {{ background: {LIGHT_BG}; }}
       .stApp header {{ background: white; border-bottom: 1px solid #e6f0ec; }}}
       .metric-row {{ display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }}}
       .pill {{ display:inline-block; padding:4px 10px; border-radius:20px; background:{PRIMARY_COLOR}; color:white; font-size:12px; }}}
