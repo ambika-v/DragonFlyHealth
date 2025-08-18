@@ -593,7 +593,6 @@ with _tab2:
     """,
     unsafe_allow_html=True,
 )
-
     st.markdown("### Risk for Selected Slot")
     idx = st.select_slider("Pick a recommended slot to simulate risk", options=list(range(1, len(top)+1)), value=1)
     chosen = top[idx-1]
