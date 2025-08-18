@@ -35,8 +35,8 @@ ALERT_COLOR   = "#2E8B57"   # deep green
 LIGHT_BG      = "#F4FAF8"   # very light blue‑green
 
 BASE_DIR = Path(__file__).resolve().parent
-LOGO_PATH = "assets/dragonflyhealth_logo.jpg"
-LOGO_MARK_PATH = "assets/dragonflyhealth_mark.jpg"
+LOGO_PATH = "../assets/dragonflyhealth_logo.jpg"
+LOGO_MARK_PATH = "../assets/dragonflyhealth_mark.jpg"
 
 # Fallback auto-detect
 if not os.path.exists(LOGO_PATH) or not os.path.exists(LOGO_MARK_PATH):
