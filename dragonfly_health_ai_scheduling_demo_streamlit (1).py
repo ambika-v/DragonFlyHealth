@@ -556,6 +556,18 @@ def datetime_picker(label_prefix: str, default_dt: datetime) -> datetime:
 # Sidebar — Controls
 # ---------------------------
 with st.sidebar:
+    # Demo runner button
+play = st.button("▶ Play demo", use_container_width=True)
+if play:
+    # A lightweight status animation so stakeholders see “AI is working”
+    with st.status("Playing demo…", expanded=True) as status:
+        import time as _t
+        status.update(label="Loading synthetic data", state="running"); _t.sleep(0.5)
+        status.update(label="Training lightweight risk model", state="running"); _t.sleep(0.6)
+        status.update(label="Generating recommended slots", state="running"); _t.sleep(0.6)
+        status.update(label="Scoring ETA and recommending technicians", state="running"); _t.sleep(0.6)
+        status.update(label="Done — explore tabs 2 & 6 to see the prefilled scenario", state="complete")
+    st.toast("Demo ready: open 'Order Intake + Recommender' then 'Equipment • ETA • Technicians'", icon="✅")
     if os.path.exists(LOGO_PATH):
         st.image(LOGO_PATH, caption="Dragonfly Health", use_column_width=True)
     else:
