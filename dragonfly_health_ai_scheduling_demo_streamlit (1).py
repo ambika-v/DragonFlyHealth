@@ -157,8 +157,8 @@ def make_synthetic(n_orders: int = 1500, start_date: datetime | None = None) -> 
 
         start_offset = np.random.randint(1, min(72, sla_hours + 12))
         scheduled_start = requested + timedelta(hours=start_offset)
-        window_len = np.random.choice([2, 4, 6], p=[0.45, 0.45, 0.10])
-        scheduled_end = scheduled_start + timedelta(hours=window_len)
+        window_len = int(np.random.choice([2, 4, 6], p=[0.45, 0.45, 0.10]))
+        scheduled_end = scheduled_start + timedelta(hours=int(window_len))
 
         channel = np.random.choice(CHANNELS, p=[0.55, 0.30, 0.02, 0.10, 0.03])
         distance_km = np.random.gamma(3, 7)
