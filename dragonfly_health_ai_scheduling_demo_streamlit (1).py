@@ -67,15 +67,15 @@ st.markdown(
     f"""
     <style>
       .main {{ background: {LIGHT_BG}; }}
-      .stApp header {{ background: white; border-bottom: 1px solid #e6f0ec; }}
+      .stApp header {{ background: #e6f7e6; border-bottom: 1px solid #b3e6cc; }}
       .pill {{ display:inline-block; padding:4px 10px; border-radius:20px; background:{PRIMARY_COLOR}; color:white; font-size:12px; }}
       .brand {{ color: {PRIMARY_COLOR}; }}
       .accent {{ color: {ACCENT_COLOR}; }}
       .warn {{ color: {WARN_COLOR}; }}
       .alert {{ color: {ALERT_COLOR}; }}
-      .card {{ background:white; padding:16px; border-radius:16px; box-shadow:0 2px 10px rgba(0,0,0,0.05); }}
+      .card {{ background:#e6f7e6; padding:16px; border-radius:16px; box-shadow:0 2px 10px rgba(0,0,0,0.05); }}
       .subtle {{ color:#4d6672; font-size:13px; }}
-      .divider {{ height:1px; background:#e6f0ec; margin:8px 0 16px; }}
+      .divider {{ height:1px; background:#b3e6cc; margin:8px 0 16px; }}
       /* Buttons */
       div.stButton>button:first-child {{ background:{PRIMARY_COLOR}; color:white; border-radius:10px; }}
       /* Slider track tint */
@@ -89,7 +89,7 @@ st.markdown(
       .df-nav .df-title {{ font-weight:700; font-size:18px; letter-spacing:0.3px; }}
       /* Compact KPI tiles */
       .df-tiles {{ display:grid; grid-template-columns: repeat(6, minmax(0,1fr)); gap:10px; }}
-      .df-tile {{ background:white; border-radius:14px; padding:12px; box-shadow:0 1px 6px rgba(0,0,0,.05); }}
+      .df-tile {{ background:#e6f7e6; border-radius:14px; padding:12px; box-shadow:0 1px 6px rgba(0,0,0,.05); }}
       .df-t-h {{ font-size:12px; color:#56707a; }}
       .df-t-v {{ font-size:22px; font-weight:700; color:{PRIMARY_COLOR}; margin-top:2px; }}
       .df-section {{ display:flex; align-items:center; justify-content:space-between; margin:2px 2px 8px; }}
