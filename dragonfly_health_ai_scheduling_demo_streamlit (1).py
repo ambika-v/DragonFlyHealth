@@ -65,16 +65,33 @@ ALERT_COLOR   = "#2E8B57"   # deep green
 LIGHT_BG      = "#F4FAF8"   # very light blue‑green
 
 # Optional logos — add files to your repo under assets/ and they will render automatically
+from pathlib import Path
+BASE_DIR = Path(__file__).resolve().parent
+
+# Default guesses
 LOGO_PATH = "assets/dragonfly_logo.png"         # full logo
 LOGO_MARK_PATH = "assets/dragonfly_mark.png"    # compact mark
-# Auto-detect .png/.jpg/.jpeg
-for _ext in ["png", "jpg", "jpeg"]:
-    if os.path.exists(f"assets/dragonfly_logo.{_ext}"):
-        LOGO_PATH = f"assets/dragonfly_logo.{_ext}"
-    if os.path.exists(f"assets/dragonfly_mark.{_ext}"):
-        LOGO_MARK_PATH = f"assets/dragonfly_mark.{_ext}"
+
+# Robust auto-detect: look for .png/.jpg/.jpeg in ./assets and ../assets
+_logo = None
+_mark = None
+for folder in [BASE_DIR / "assets", BASE_DIR.parent / "assets", Path("assets")]:
+    for ext in ["png", "jpg", "jpeg"]:
+        cand = folder / f"dragonfly_logo.{ext}"
+        if cand.exists():
+            _logo = str(cand)
+        cand2 = folder / f"dragonfly_mark.{ext}"
+        if cand2.exists():
+            _mark = str(cand2)
+LOGO_PATH = _logo or LOGO_PATH
+LOGO_MARK_PATH = _mark or LOGO_MARK_PATH
 
 st.set_page_config(
+    page_title="Dragonfly Health — AI Scheduling Demo",
+    page_icon=LOGO_MARK_PATH if os.path.exists(LOGO_MARK_PATH) else "🧭",
+    layout="wide",
+    initial_sidebar_state="expanded",
+)(
     page_title="Dragonfly Health — AI Scheduling Demo",
     page_icon=LOGO_MARK_PATH if os.path.exists(LOGO_MARK_PATH) else "🧭",
     layout="wide",
@@ -708,14 +725,15 @@ with _tab3:
         {"Metric":"Reschedule pressure","Scenario A":a['est_reschedules'],"Scenario B":b['est_reschedules']},
         {"Metric":"Avg SLA margin (hrs)","Scenario A":a['avg_sla_margin'],"Scenario B":b['avg_sla_margin']},
     ])
+    # Safer for Altair v5: pre-melt to long format to avoid schema issues
+    change_long = change.melt(id_vars=["Metric"], var_name="Scenario", value_name="Value")
+    change_long["Value"] = pd.to_numeric(change_long["Value"], errors="coerce")
 
-    bar = alt.Chart(change).transform_fold(
-        ["Scenario A","Scenario B"], as_=["Scenario","Value"]
-    ).mark_bar().encode(
-        x=alt.X("Value:Q"),
-        y=alt.Y("Metric:N"),
+    bar = alt.Chart(change_long).mark_bar().encode(
+        x=alt.X("Value:Q", title="Value"),
+        y=alt.Y("Metric:N", sort=None, title="Metric"),
         color=alt.Color("Scenario:N", scale=alt.Scale(range=[PRIMARY_COLOR, ACCENT_COLOR])),
-        tooltip=["Metric","Scenario","Value"]
+        tooltip=["Metric","Scenario",alt.Tooltip("Value:Q", format=".3f")]
     ).properties(height=220)
     st.altair_chart(bar, use_container_width=True)
 
