@@ -572,28 +572,29 @@ with _tab2:
     top = scored[:top_k]
 
     st.markdown("### Top Recommended Slots")
-    for i, rec in enumerate(top, 1):
-        good = "✅" if rec["score"] >= 0.6 else "👍"
-      st.markdown(
-    f"""
-    <div class='card'>
-       <div style='display:flex;justify-content:space-between;align-items:center;'>
-         <div>
-            <span class='pill'>Rank {i}</span> 
-            <b>{rec['slot_start'].strftime('%a %b %d, %I:%M %p')}</b> → {rec['slot_end'].strftime('%I:%M %p')}
-         </div>
-         <div style='font-weight:700;color:{ACCENT_COLOR}'>
-            Score {rec['score']:.2f} {good}
-         </div>
-       </div>
-       <div class='subtle' style='margin-top:6px'>
-          Why: {rec['explain']}
-       </div>
-    </div>
-    """,
-    unsafe_allow_html=True,
-)
-    st.markdown("### Risk for Selected Slot")
+for i, rec in enumerate(top, 1):
+    good = "✅" if rec["score"] >= 0.6 else "👍"
+    st.markdown(
+        f"""
+        <div class='card'>
+           <div style='display:flex;justify-content:space-between;align-items:center;'>
+             <div>
+                <span class='pill'>Rank {i}</span>
+                <b>{rec['slot_start'].strftime('%a %b %d, %I:%M %p')}</b> → {rec['slot_end'].strftime('%I:%M %p')}
+             </div>
+             <div style='font-weight:700;color:{ACCENT_COLOR}'>
+                Score {rec['score']:.2f} {good}
+             </div>
+           </div>
+           <div class='subtle' style='margin-top:6px'>
+              Why: {rec['explain']}
+           </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+st.markdown("### Risk for Selected Slot")
     idx = st.select_slider("Pick a recommended slot to simulate risk", options=list(range(1, len(top)+1)), value=1)
     chosen = top[idx-1]
 
