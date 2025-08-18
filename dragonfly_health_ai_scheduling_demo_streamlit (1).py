@@ -933,3 +933,65 @@ with _tab6:
         jobs_q = st.slider("Active jobs in queue", 0, 6, 2)
         dist_km_eta = st.number_input("Distance to patient (km)", value=float(base_row.get("distance_km", 18.0)))
     with c3:
+        plat = st.number_input("Patient lat", value=float(base_row.get("patient_lat", 42.36)))
+        plon = st.number_input("Patient lon", value=float(base_row.get("patient_lon", -71.05)))
+        req_skill = equip_meta.get("skill", "general")
+        st.metric("Required skill", req_skill)
+
+    # AI-ish ETA estimation
+    eta_min = estimate_eta_minutes(dist_km_eta, equip_meta["prep_min"], traffic, jobs_q)
+    st.markdown("### ETA prediction")
+    kpi("Estimated time to arrive (min)", f"{eta_min}", helptext="Travel + prep + queue overhead")
+
+    # Recommend technicians
+    st.markdown("### Technician recommendation")
+    top_techs = best_technicians(plat, plon, req_skill, topn=3)
+    for rank, item in enumerate(top_techs, 1):
+        t = item["tech"]
+        st.markdown(
+            f"""
+            <div class='card'>
+               <div style='display:flex;justify-content:space-between;align-items:center;'>
+                 <div>
+                    <span class='pill'>Rank {rank}</span>
+                    <b>{t['name']}</b> — skill: <b>{t['skill']}</b>
+                    <div class='subtle'>Distance ≈ {item['dist_km']:.1f} km • Active jobs: {t['active_jobs']}</div>
+                 </div>
+                 <div style='font-weight:700;color:{ACCENT_COLOR}'>Score {item['score']:.3f}</div>
+               </div>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+
+    # Mock communications (templates)
+    st.markdown("### Communications (templates)")
+    tech_choice = st.selectbox("Assign technician", options=[x["tech"]["id"] + " — " + x["tech"]["name"] for x in top_techs], key="assign_tech")
+    sel_name = tech_choice.split(" — ")[-1]
+    appt_time = datetime.now() + timedelta(minutes=eta_min)
+
+    msg_patient = (
+        f"Hello! Your Dragonfly Health delivery for {equip.replace('_',' ')} is scheduled today. "
+        f"Your technician {sel_name} is on the way. Estimated arrival: {appt_time.strftime('%I:%M %p')}. "
+        f"Reply 1 to confirm or 2 to reschedule."
+    )
+    msg_tech = (
+        f"Assignment: Deliver {equip.replace('_',' ')}. Patient coords: ({plat:.4f}, {plon:.4f}). "
+        f"ETA {eta_min} min. Prep: {equip_meta['prep_min']} min."
+    )
+    msg_facility = (
+        f"Dispatch notice: {sel_name} assigned to order {base_row['order_id']} for {equip.replace('_',' ')}. "
+        f"ETA to patient ~{eta_min} min."
+    )
+
+    st.text_area("Patient SMS", value=msg_patient, height=90)
+    st.text_area("Technician push note", value=msg_tech, height=90)
+    st.text_area("Facility/Case note", value=msg_facility, height=90)
+
+    st.info("In production, these templates would flow through your comms platform (SMS/push/IVR) with live GPS for ETA updates and confirmations.")
+
+# ---------------------------
+# Footer
+# ---------------------------
+st.markdown("<div class='divider'></div>", unsafe_allow_html=True)
+st.caption("© 2025 Dragonfly Health — Demo. For illustrative use only; not for clinical routing decisions.")
