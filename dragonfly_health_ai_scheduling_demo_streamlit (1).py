@@ -66,34 +66,73 @@ st.set_page_config(
 st.markdown(
     f"""
     <style>
-      .main {{ background: {LIGHT_BG}; }}
-      .stApp header {{ background: #e6f7e6; border-bottom: 1px solid #b3e6cc; }}
-      .pill {{ display:inline-block; padding:4px 10px; border-radius:20px; background:{PRIMARY_COLOR}; color:white; font-size:12px; }}
-      .brand {{ color: {PRIMARY_COLOR}; }}
-      .accent {{ color: {ACCENT_COLOR}; }}
-      .warn {{ color: {WARN_COLOR}; }}
-      .alert {{ color: {ALERT_COLOR}; }}
-      .card {{ background:#e6f7e6; padding:16px; border-radius:16px; box-shadow:0 2px 10px rgba(0,0,0,0.05); }}
-      .subtle {{ color:#4d6672; font-size:13px; }}
-      .divider {{ height:1px; background:#b3e6cc; margin:8px 0 16px; }}
+      /* Global app background */
+      .stApp {{
+        background-color: #e6f7e6 !important;  /* soft green */
+      }}
+
+      /* Main container */
+      .main {{
+        background-color: #e6f7e6 !important;
+      }}
+
+      /* Sidebar */
+      section[data-testid="stSidebar"] {{
+        background-color: #c8f2c8 !important;
+      }}
+
+      /* Header */
+      .stApp header {{
+        background: #c8f2c8 !important;
+        border-bottom: 1px solid #99d699;
+      }}
+
+      /* KPI cards / tiles */
+      .card, .df-tile {{
+        background:#c8f2c8 !important;
+        border-radius:16px;
+        padding:16px;
+        box-shadow:0 2px 10px rgba(0,0,0,0.05);
+      }}
+
+      /* Subtle text */
+      .subtle {{ color:#2e5939; font-size:13px; }}
+
+      /* Dividers */
+      .divider {{ height:1px; background:#99d699; margin:8px 0 16px; }}
+
       /* Buttons */
-      div.stButton>button:first-child {{ background:{PRIMARY_COLOR}; color:white; border-radius:10px; }}
+      div.stButton>button:first-child {{
+        background:{PRIMARY_COLOR}; color:white; border-radius:10px;
+      }}
+
       /* Slider track tint */
-      [data-baseweb="slider"]>div>div {{ background:{ACCENT_COLOR}22; }}
-      /* Scrollbar blue */
+      [data-baseweb="slider"]>div>div {{
+        background:{ACCENT_COLOR}33;
+      }}
+
+      /* Scrollbar */
       *::-webkit-scrollbar {{ width:10px; height:10px; }}
       *::-webkit-scrollbar-thumb {{ background:{PRIMARY_COLOR}; border-radius:8px; }}
+
       /* Navbar */
-      .df-nav {{ background: linear-gradient(90deg, #114E7A 0%, #0F6E86 55%, #14B58A 100%); color: white; padding: 10px 14px; border-radius: 12px; display:flex; align-items:center; gap:12px; margin-bottom: 10px; }}
-      .df-nav .df-mark {{ height: 40px; width:auto; border-radius:8px; background:#ffffff22; padding:4px; }}
+      .df-nav {{
+        background: linear-gradient(90deg, #0F6E86 0%, #14B58A 100%);
+        color: white; padding: 10px 14px; border-radius: 12px;
+        display:flex; align-items:center; gap:12px; margin-bottom: 10px;
+      }}
+      .df-nav .df-mark {{
+        height: 40px; width:auto; border-radius:8px; background:#ffffff22; padding:4px;
+      }}
       .df-nav .df-title {{ font-weight:700; font-size:18px; letter-spacing:0.3px; }}
-      /* Compact KPI tiles */
-      .df-tiles {{ display:grid; grid-template-columns: repeat(6, minmax(0,1fr)); gap:10px; }}
-      .df-tile {{ background:#e6f7e6; border-radius:14px; padding:12px; box-shadow:0 1px 6px rgba(0,0,0,.05); }}
-      .df-t-h {{ font-size:12px; color:#56707a; }}
+
+      /* KPI grid */
+      .df-tiles {{
+        display:grid; grid-template-columns: repeat(6, minmax(0,1fr));
+        gap:10px;
+      }}
+      .df-t-h {{ font-size:12px; color:#2e5939; }}
       .df-t-v {{ font-size:22px; font-weight:700; color:{PRIMARY_COLOR}; margin-top:2px; }}
-      .df-section {{ display:flex; align-items:center; justify-content:space-between; margin:2px 2px 8px; }}
-      .df-section h3 {{ margin:0; color:{PRIMARY_COLOR}; }}
     </style>
     """,
     unsafe_allow_html=True,
