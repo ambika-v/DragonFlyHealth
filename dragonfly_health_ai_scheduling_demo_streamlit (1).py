@@ -521,14 +521,6 @@ def score_slots(order_row: pd.Series, candidate_slots: list[tuple[datetime, date
 # Dragonfly Health — AI Scheduling Demo (Streamlit)
 # PART 2 of 2 — geo/routing, ETA/tech, report/export, full UI layout
 
-from __future__ import annotations
-import os, io, math, random, base64
-from datetime import datetime, timedelta
-import numpy as np
-import pandas as pd
-import altair as alt
-import streamlit as st
-
 # If Part 1 ran in same file, these exist already; otherwise import them from Part 1
 try:
     HAS_ORTOOLS
