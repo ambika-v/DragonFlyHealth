@@ -187,7 +187,7 @@ def render_landing(df: pd.DataFrame, model_metrics: dict):
     labels = ["On-time rate", "Adj. rate", "% STAT", "Avg distance", "Median ETA", "Model AUC"]
     values = [f"{on_time*100:.1f}%", f"{adj_rate*100:.1f}%", f"{stat_share*100:.1f}%", f"{avg_dist:.1f} km", f"{med_eta} min", f"{model_metrics.get('AUC', 0):.2f}"]
 
-   colA, colB, colC = st.columns(3)
+    colA, colB, colC = st.columns(3)
     with colA:
         kpi("On-time rate", values[0])
         kpi("Adj. rate", values[1])
@@ -197,6 +197,7 @@ def render_landing(df: pd.DataFrame, model_metrics: dict):
     with colC:
         kpi("Median ETA", values[4])
         kpi("Model AUC", values[5])
+   
 
     # Row 1: Donut (on-time vs adjusted) + Daily volume
     c1, c2 = st.columns([1, 2])
