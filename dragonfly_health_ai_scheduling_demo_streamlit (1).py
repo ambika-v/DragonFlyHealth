@@ -542,32 +542,40 @@ def build_report_html(payload: dict) -> bytes:
     </style>
     """
     def esc(x):
-        try: return str(x).replace("&","&amp;").replace("<","&lt;").replace(">","&gt;")
-        except Exception: return str(x)
+        try:
+            return str(x).replace("&","&amp;").replace("<","&lt;").replace(">","&gt;")
+        except Exception:
+            return str(x)
+
     sec = payload or {}
     html = [css, "<h1>Dragonfly Health — Scheduling Run</h1>"]
+
     html.append(
         "<div class='card'><div class='muted'>Order</div>"
         f"<div><span class='k'>Order ID:</span> {esc(sec.get('order_id',''))}</div>"
-        f"<div><span class='k'>Priority:</span> {esc(sec.get('priority',''))} • <span class='k'>Equip:</span> {esc(sec.get('equipment',''))}</div>"
+        f"<div><span class='k'>Priority:</span> {esc(sec.get('priority',''))} • "
+        f"<span class='k'>Equip:</span> {esc(sec.get('equipment',''))}</div>"
         f"<div><span class='k'>Due by:</span> {esc(sec.get('due_by',''))}</div>"
         f"<div><span class='k'>Window:</span> {esc(sec.get('window_len',''))} hrs</div></div>"
     )
+
     html.append(
         "<div class='card'><div class='muted'>Recommended Slot</div>"
-        f"<div><span class='k'>Start:</span> {esc(sec.get('slot_start',''))} → <span class='k'>End:</span> {esc(sec.get('slot_end',''))}</div>"
-        f"<div><span class='k'>Score:</span> {esc(sec.get('score',''))} • <span class='k'>Risk:</span> {esc(sec.get('risk',''))}</div></div>"
+        f"<div><span class='k'>Start:</span> {esc(sec.get('slot_start',''))} → "
+        f"<span class='k'>End:</span> {esc(sec.get('slot_end',''))}</div>"
+        f"<div><span class='k'>Score:</span> {esc(sec.get('score',''))} • "
+        f"<span class='k'>Risk:</span> {esc(sec.get('risk',''))}</div></div>"
     )
+
     if sec.get('eta_min') is not None:
         html.append(
             "<div class='card'><div class='muted'>ETA & Technician</div>"
             f"<div><span class='k'>ETA:</span> {esc(sec.get('eta_min'))} min</div>"
             f"<div><span class='k'>Technician:</span> {esc(sec.get('technician',''))}</div></div>"
         )
-    html.append(f"<div class='muted'>Generated: {datetime.now().strftime('%Y-%m-%d %H:%M')}</div>")
-    return "
-".join(html).encode("utf-8")
 
+    html.append(f"<div class='muted'>Generated: {datetime.now().strftime('%Y-%m-%d %H:%M')}</div>")
+    return "\n".join(html).encode("utf-8")
 
 def run_demo_status():
     with st.status("Playing demo…", expanded=True) as status:
