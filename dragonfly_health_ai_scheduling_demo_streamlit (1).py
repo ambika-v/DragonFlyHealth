@@ -110,7 +110,7 @@ st.markdown(
       .alert {{ color: {ALERT_COLOR}; }}}
       .card {{ background:white; padding:16px; border-radius:16px; box-shadow: 0 2px 10px rgba(0,0,0,0.05); }}}
       .subtle {{ color:#4d6672; font-size:13px; }}}
-      .divider {{ height:1px; background:#e6f0ec; margin:8px 0 16px; }}}
+      .divider {{ height:1px; background:#e6f0ec; margin:8px 0 16px; }}
       /* Buttons */
       div.stButton>button:first-child {{ background:{PRIMARY_COLOR}; color:white; border-radius:10px; }}}
       /* Sliders */
