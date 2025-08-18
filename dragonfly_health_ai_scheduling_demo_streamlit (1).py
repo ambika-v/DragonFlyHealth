@@ -187,13 +187,16 @@ def render_landing(df: pd.DataFrame, model_metrics: dict):
     labels = ["On-time rate", "Adj. rate", "% STAT", "Avg distance", "Median ETA", "Model AUC"]
     values = [f"{on_time*100:.1f}%", f"{adj_rate*100:.1f}%", f"{stat_share*100:.1f}%", f"{avg_dist:.1f} km", f"{med_eta} min", f"{model_metrics.get('AUC', 0):.2f}"]
 
-    st.markdown("<div class='df-tiles'>", unsafe_allow_html=True)
-    for label, value in zip(labels, values):
-        st.markdown(
-            f"<div class='df-tile'><div class='df-t-h'>{label}</div><div class='df-t-v'>{value}</div></div>",
-            unsafe_allow_html=True,
-        )
-    st.markdown("</div>", unsafe_allow_html=True)
+    colA, colB, colC = st.columns(3)
+with colA:
+    kpi("On-time rate", values[0])
+    kpi("Adj. rate", values[1])
+with colB:
+    kpi("% STAT", values[2])
+    kpi("Avg distance", values[3])
+with colC:
+    kpi("Median ETA", values[4])
+    kpi("Model AUC", values[5])
 
     # Row 1: Donut (on-time vs adjusted) + Daily volume
     c1, c2 = st.columns([1, 2])
