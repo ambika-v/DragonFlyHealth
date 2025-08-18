@@ -100,30 +100,30 @@ st.set_page_config(
 st.markdown(
     f"""
     <style>
-      .main {{ background: {LIGHT_BG}; }}
-      .stApp header {{ background: white; border-bottom: 1px solid #e6f0ec; }}
-      .metric-row {{ display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }}
-      .pill {{ display:inline-block; padding:4px 10px; border-radius:20px; background:{PRIMARY_COLOR}; color:white; font-size:12px; }}
-      .brand {{ color: {PRIMARY_COLOR}; }}
-      .accent {{ color: {ACCENT_COLOR}; }}
-      .warn {{ color: {WARN_COLOR}; }}
-      .alert {{ color: {ALERT_COLOR}; }}
-      .card {{ background:white; padding:16px; border-radius:16px; box-shadow: 0 2px 10px rgba(0,0,0,0.05); }}
-      .subtle {{ color:#4d6672; font-size:13px; }}
-      .divider {{ height:1px; background:#e6f0ec; margin:8px 0 16px; }}
+      .main {{ background: {LIGHT_BG}; }}}
+      .stApp header {{ background: white; border-bottom: 1px solid #e6f0ec; }}}
+      .metric-row {{ display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }}}
+      .pill {{ display:inline-block; padding:4px 10px; border-radius:20px; background:{PRIMARY_COLOR}; color:white; font-size:12px; }}}
+      .brand {{ color: {PRIMARY_COLOR}; }}}
+      .accent {{ color: {ACCENT_COLOR}; }}}
+      .warn {{ color: {WARN_COLOR}; }}}
+      .alert {{ color: {ALERT_COLOR}; }}}
+      .card {{ background:white; padding:16px; border-radius:16px; box-shadow: 0 2px 10px rgba(0,0,0,0.05); }}}
+      .subtle {{ color:#4d6672; font-size:13px; }}}
+      .divider {{ height:1px; background:#e6f0ec; margin:8px 0 16px; }}}
       /* Buttons */
-      div.stButton>button:first-child {{ background:{PRIMARY_COLOR}; color:white; border-radius:10px; }}
+      div.stButton>button:first-child {{ background:{PRIMARY_COLOR}; color:white; border-radius:10px; }}}
       /* Sliders */
-      .stSlider [data-baseweb="slider"]>div>div {{ background:{ACCENT_COLOR}22; }}
+      .stSlider [data-baseweb="slider"]>div>div {{ background:{ACCENT_COLOR}22; }}}
       /* Scrollbars (blue) */
-      *::-webkit-scrollbar {{ width: 10px; height: 10px; }}
-      *::-webkit-scrollbar-thumb {{ background: {PRIMARY_COLOR}; border-radius: 8px; }}
-      *::-webkit-scrollbar-track {{ background: #e6f0ec; }}
-      html {{ scrollbar-color: {PRIMARY_COLOR} #e6f0ec; scrollbar-width: thin; }}
+      *::-webkit-scrollbar {{ width: 10px; height: 10px; }}}
+      *::-webkit-scrollbar-thumb {{ background: {PRIMARY_COLOR}; border-radius: 8px; }}}
+      *::-webkit-scrollbar-track {{ background: #e6f0ec; }}}
+      html {{ scrollbar-color: {PRIMARY_COLOR} #e6f0ec; scrollbar-width: thin; }}}
       /* Branded top navbar */
-      .df-nav { background: linear-gradient(90deg, #114E7A 0%, #0F6E86 55%, #14B58A 100%); color: white; padding: 10px 14px; border-radius: 12px; display:flex; align-items:center; gap:12px; margin-bottom: 10px; }
-      .df-nav .df-mark { height: 40px; width:auto; border-radius:8px; background:#ffffff22; padding:4px; }
-      .df-nav .df-title { font-weight:700; font-size:18px; letter-spacing:0.3px; }
+      .df-nav {{ background: linear-gradient(90deg, #114E7A 0%, #0F6E86 55%, #14B58A 100%); color: white; padding: 10px 14px; border-radius: 12px; display:flex; align-items:center; gap:12px; margin-bottom: 10px; }}
+      .df-nav .df-mark {{ height: 40px; width:auto; border-radius:8px; background:#ffffff22; padding:4px; }}
+      .df-nav .df-title {{ font-weight:700; font-size:18px; letter-spacing:0.3px; }}
     </style>
     """,
     unsafe_allow_html=True,
