@@ -983,7 +983,7 @@ with _tab2:
 
 # Routing (VRP‑lite)
 # Routing (multi-route VRP)
-with _tab5:
+with _tab3:
     st.subheader("Route planning — multiple routes/technicians")
 
     # Controls
