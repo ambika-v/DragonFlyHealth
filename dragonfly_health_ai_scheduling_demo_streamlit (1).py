@@ -660,7 +660,8 @@ def build_distance_matrix(points: list[tuple[float,float]]):
 # Multi-route planning (K vehicles)
 # ---------------------------
 from typing import List, Dict
- def plan_multi_routes_with_constraints(
+ 
+def plan_multi_routes_with_constraints(
     depot: tuple[float, float],
     stops: list[dict],
     num_routes: int = 2,
