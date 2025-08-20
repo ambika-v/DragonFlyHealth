@@ -1203,7 +1203,7 @@ with _tab3:
             pool[c] = np.nan
 
     # Now select in the intended order
-       stops_df = pool[needed].copy()
+    stops_df = pool[needed].copy()
 
     # shape stops
     shaped = _make_stops_from_df(stops_df.rename(columns={"patient_lat":"patient_lat", "patient_lon":"patient_lon"}))
