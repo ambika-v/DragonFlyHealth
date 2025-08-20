@@ -984,9 +984,8 @@ with _tab2:
 # Routing (VRP‑lite)
 # Routing (multi-route VRP)
 with _tab3:
-    st.subheader("Route planning — multiple routes/technicians")
+    st.subheader("Route planning — time windows • skills • capacity")
 
-    # Controls
     h_opts = {h["hospital_id"]: h for h in HOSPITALS}
     c1, c2, c3 = st.columns(3)
     with c1:
@@ -994,68 +993,82 @@ with _tab3:
             "Facility",
             options=list(h_opts.keys()),
             format_func=lambda x: f"{x} — {h_opts[x]['name']}",
-            key="facility_routing_v2",
+            key="facility_routing_constrained",
         )
     with c2:
-        n_orders = st.slider("Number of orders", 4, 40, 12, 1, key="n_orders_v2")
+        n_orders = st.slider("Number of orders", 4, 50, 12, 1)
     with c3:
-        n_routes = st.slider("Number of routes (technicians)", 1, 6, 3, 1, key="n_routes_v2")
+        n_routes = st.slider("Number of routes (technicians)", 1, 8, 3, 1)
 
-    # Choose depot and sample closest orders to plan
+    c4, c5, c6, c7 = st.columns(4)
+    with c4:
+        cap = st.number_input("Capacity per route (stops)", min_value=1, max_value=50, value=6)
+    with c5:
+        enforce_sk = st.checkbox("Enforce technician skills", value=True)
+    with c6:
+        use_tw = st.checkbox("Use time windows (if available/derived)", value=True)
+    with c7:
+        speed = st.number_input("Avg speed (km/h)", min_value=10.0, max_value=90.0, value=38.0, step=1.0)
+
+    # Build depot & choose nearest orders
     depot_lat, depot_lon = h_opts[h_sel]["lat"], h_opts[h_sel]["lon"]
     fac_df = raw_df[raw_df["hospital_id"] == h_sel].copy()
-    if fac_df.empty:
-        fac_df = raw_df.copy()
+    if fac_df.empty: fac_df = raw_df.copy()
 
-    # Pick a seed and nearest neighbors to get n_orders stops
-    def _nearest(df, center_lat, center_lon, k):
+    # choose a pool near depot
+    def _nearest(df, clat, clon, k):
         d = df.copy()
-        d["dist"] = d.apply(lambda r: haversine_km(center_lat, center_lon, float(r["patient_lat"]), float(r["patient_lon"])), axis=1)
+        d["dist"] = d.apply(lambda r: haversine_km(clat, clon, float(r["patient_lat"]), float(r["patient_lon"])), axis=1)
         return d.nsmallest(k, "dist")
 
-    pool = _nearest(fac_df, depot_lat, depot_lon, min(len(fac_df), max(5, n_orders)))
-    pool = pool.head(n_orders)
+    pool = _nearest(fac_df, depot_lat, depot_lon, min(len(fac_df), max(5, n_orders))).head(n_orders)
+    stops_df = pool[["order_id","equipment_type","patient_lat","patient_lon","priority","patient_pref",
+                     "scheduled_start","scheduled_end","RequestedStartDate","RequestedEndDate"]].copy(errors="ignore")
 
-    stops = [
-        {
-            "order_id": str(r["order_id"]),
-            "equipment_type": str(r["equipment_type"]),
-            "patient_lat": float(r["patient_lat"]),
-            "patient_lon": float(r["patient_lon"]),
-        }
-        for _, r in pool.iterrows()
+    # shape stops
+    shaped = _make_stops_from_df(stops_df.rename(columns={"patient_lat":"patient_lat", "patient_lon":"patient_lon"}))
+    # rename keys expected by solver
+    stops_payload = [
+        {"order_id": s["order_id"], "equipment_type": s["equipment_type"],
+         "patient_lat": s["lat"], "patient_lon": s["lon"],
+         "skill_req": s["skill_req"], "service_min": s["service_min"],
+         "tw_start": s["tw_start"], "tw_end": s["tw_end"]}
+        for s in shaped
     ]
 
-    # Plan routes
-    plan = plan_multi_routes_from_points((depot_lat, depot_lon), stops, num_routes=n_routes)
+    # solve
+    plan = plan_multi_routes_with_constraints(
+        (depot_lat, depot_lon),
+        stops_payload,
+        num_routes=n_routes,
+        capacity_per_vehicle=cap,
+        enforce_skills=enforce_sk,
+        use_time_windows=use_tw,
+        speed_kmh=speed,
+    )
 
-    # Show summary
+    # Show routes
     st.markdown("### Suggested routes")
-    rcols = st.columns(min(3, max(1, len(plan["routes"]))))
-    for idx, route in enumerate(plan["routes"]):
-        with rcols[idx % len(rcols)]:
-            st.markdown(f"**Route {idx+1}**  \nDistance: **{plan['dist_km'][idx]:.1f} km**")
+    cols = st.columns(min(3, max(1, len(plan["routes"]))))
+    for ridx, route in enumerate(plan["routes"]):
+        with cols[ridx % len(cols)]:
+            st.markdown(f"**Route {ridx+1}** — Distance: **{plan['dist_km'][ridx]:.1f} km**")
             for step, pidx in enumerate(route):
                 st.markdown(f"{step+1}. {plan['labels'][pidx]}")
 
-    st.markdown("---")
     kpi("Total distance (km)", f"{plan['total_km']:.1f}", "All routes combined")
 
-    # Map: plot depot + all stops, color by route (simple labels)
-    map_df = []
+    # Map
+    map_rows = []
     for r_i, route in enumerate(plan["routes"], 1):
         for pidx in route:
             lat, lon = plan["points"][pidx]
-            map_df.append({"latitude": lat, "longitude": lon, "Route": f"Route {r_i}", "label": plan["labels"][pidx]})
-    map_df = pd.DataFrame(map_df)
-    if not map_df.empty:
+            map_rows.append({"latitude": lat, "longitude": lon, "Route": f"Route {r_i}", "label": plan["labels"][pidx]})
+    if map_rows:
         st.markdown("#### Map preview")
-        st.map(map_df.rename(columns={"longitude": "longitude", "latitude": "latitude"}))
+        st.map(pd.DataFrame(map_rows))
     else:
-        st.info("No routes to display for current selection.")
-
-    st.caption("Tip: if OR-Tools is available, the solver uses a proper VRP. Otherwise, it clusters orders and runs a greedy route inside each cluster.")
-
+        st.info("No routes to display with current selection.")
 # with _tab3:
 #     st.subheader("Route planning from facility → patients (demo)")
 #     h_opts = {h["hospital_id"]:h for h in HOSPITALS}
