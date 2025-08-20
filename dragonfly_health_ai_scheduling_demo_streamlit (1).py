@@ -768,7 +768,7 @@ def plan_multi_routes_from_points(
         "dist_km": rkms,
         "total_km": float(sum(rkms)),
     }
- def plan_multi_routes_with_constraints(
+    def plan_multi_routes_with_constraints(
     depot: tuple[float, float],
     stops: list[dict],
     num_routes: int = 2,
@@ -776,7 +776,7 @@ def plan_multi_routes_from_points(
     enforce_skills: bool = True,
     use_time_windows: bool = True,
     speed_kmh: float = 38.0,
-) -> dict:
+     ) -> dict:
     """
     Returns:
       {'routes': [[idx,...],...], 'labels': [...], 'points': [(lat,lon),...],
