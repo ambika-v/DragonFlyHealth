@@ -1187,8 +1187,23 @@ with _tab3:
         return d.nsmallest(k, "dist")
 
     pool = _nearest(fac_df, depot_lat, depot_lon, min(len(fac_df), max(5, n_orders))).head(n_orders)
-    stops_df = pool[["order_id","equipment_type","patient_lat","patient_lon","priority","patient_pref",
-                     "scheduled_start","scheduled_end","RequestedStartDate","RequestedEndDate"]].copy(errors="ignore")
+      # Ensure required columns exist; create missing ones with sensible defaults
+    needed = ["order_id","equipment_type","patient_lat","patient_lon","priority","patient_pref",
+    "scheduled_start","scheduled_end","RequestedStartDate","RequestedEndDate"]
+
+    pool = pool.copy()
+    for c in needed:
+        if c not in pool.columns:
+        # Default types: dates as NaT, others as NaN/empty
+        if any(k in c.lower() for k in ["date","time","scheduled","start","end"]):
+            pool[c] = pd.NaT
+        elif c in ("order_id","equipment_type","priority","patient_pref"):
+            pool[c] = ""
+        else:
+            pool[c] = np.nan
+
+# Now select in the intended order
+    stops_df = pool[needed].copy()
 
     # shape stops
     shaped = _make_stops_from_df(stops_df.rename(columns={"patient_lat":"patient_lat", "patient_lon":"patient_lon"}))
