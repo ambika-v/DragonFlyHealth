@@ -691,9 +691,9 @@ def plan_multi_routes_from_points(
         routing.SetArcCostEvaluatorOfAllVehicles(transit_idx)
 
         # All vehicles start & end at depot
-        for v in range(num_routes):
-            routing.SetStartDepot(v, 0)
-            routing.SetEndDepot(v, 0)
+        # for v in range(num_routes):
+        #     routing.SetStartDepot(v, 0)
+        #     routing.SetEndDepot(v, 0)
 
         # Balance routes a bit by adding a soft maximum number of nodes per vehicle
         # (not strictly necessary; helps avoid empty routes on small instances)
@@ -768,6 +768,134 @@ def plan_multi_routes_from_points(
         "dist_km": rkms,
         "total_km": float(sum(rkms)),
     }
+ def plan_multi_routes_with_constraints(
+    depot: tuple[float, float],
+    stops: list[dict],
+    num_routes: int = 2,
+    capacity_per_vehicle: int = 6,
+    enforce_skills: bool = True,
+    use_time_windows: bool = True,
+    speed_kmh: float = 38.0,
+) -> dict:
+    """
+    Returns:
+      {'routes': [[idx,...],...], 'labels': [...], 'points': [(lat,lon),...],
+       'dist_km': [...], 'total_km': float}
+    Index mapping:
+      0 = depot; 1..N = stops in input order.
+    """
+    pts = [depot] + [(float(s["patient_lat"]), float(s["patient_lon"])) for s in stops]
+    labels = ["Facility"] + [f'{s["order_id"]} ({s["equipment_type"]})' for s in stops]
+    M = build_distance_matrix(pts)  # meters
+
+    # Choose vehicles from TECHNICIANS (fewest active jobs first)
+    techs_sorted = sorted(TECHNICIANS, key=lambda t: t.get("active_jobs", 0))
+    k = max(1, int(num_routes))
+    vehicles = techs_sorted[:k]
+    vehicle_skills = [v.get("skill", "general") for v in vehicles]
+
+    routes = []
+
+    if HAS_ORTOOLS and len(pts) > 2:
+        from ortools.constraint_solver import pywrapcp, routing_enums_pb2
+
+        n = len(pts)
+        starts = [0] * k
+        ends   = [0] * k
+        manager = pywrapcp.RoutingIndexManager(n, k, starts, ends)
+        routing = pywrapcp.RoutingModel(manager)
+
+        # service time proxy from equipment prep_min (put at "from" node)
+        service_min = [0] + [int(s.get("service_min", EQUIPMENT_CATALOG.get(s["equipment_type"], {}).get("prep_min", 10))) for s in stops]
+
+        def travel_time_cb(fi, ti):
+            f = manager.IndexToNode(fi); t = manager.IndexToNode(ti)
+            dist_m = M[f][t]
+            travel_min = (dist_m / 1000.0) / max(5.0, float(speed_kmh)) * 60.0
+            return int(round(travel_min + service_min[f]))
+
+        time_idx = routing.RegisterTransitCallback(travel_time_cb)
+        routing.SetArcCostEvaluatorOfAllVehicles(time_idx)
+
+        # Capacity: 1 unit per stop
+        def demand_cb(index):
+            node = manager.IndexToNode(index)
+            return 0 if node == 0 else 1
+        demand_idx = routing.RegisterUnaryTransitCallback(demand_cb)
+        caps = [int(capacity_per_vehicle)] * k
+        routing.AddDimensionWithVehicleCapacity(demand_idx, 0, caps, True, "Capacity")
+
+        # Time dimension
+        horizon = 48 * 60  # minutes
+        routing.AddDimension(time_idx, 60*12, horizon, True, "Time")
+        time_dim = routing.GetDimensionOrDie("Time")
+
+        if use_time_windows:
+            for i, s in enumerate(stops, start=1):
+                # prefer explicit tw fields; else derive from priority/prefs
+                ws = int(s.get("tw_start", 0))
+                we = int(s.get("tw_end", 12*60))
+                time_dim.CumulVar(manager.NodeToIndex(i)).SetRange(ws, max(ws+30, we))
+        # depot starts at time 0
+        for v in range(k):
+            time_dim.CumulVar(routing.Start(v)).SetRange(0, 0)
+
+        # Skills: restrict vehicles that can visit a stop
+        if enforce_skills:
+            for i, s in enumerate(stops, start=1):
+                required = s.get("skill_req", EQUIPMENT_CATALOG.get(s["equipment_type"], {}).get("skill", "general"))
+                allowed = [v for v, sk in enumerate(vehicle_skills) if sk == required or required == "general" or sk == "general"]
+                if allowed:
+                    routing.SetAllowedVehiclesForIndex(allowed, manager.NodeToIndex(i))
+
+        params = pywrapcp.DefaultRoutingSearchParameters()
+        params.first_solution_strategy = routing_enums_pb2.FirstSolutionStrategy.PATH_CHEAPEST_ARC
+        params.local_search_metaheuristic = routing_enums_pb2.LocalSearchMetaheuristic.GUIDED_LOCAL_SEARCH
+        params.time_limit.seconds = 3
+
+        sol = routing.SolveWithParameters(params)
+        if sol:
+            for v in range(k):
+                idx = routing.Start(v)
+                route = []
+                while not routing.IsEnd(idx):
+                    route.append(manager.IndexToNode(idx))
+                    idx = sol.Value(routing.NextVar(idx))
+                route.append(manager.IndexToNode(idx))  # end at depot
+                if len(route) > 2:
+                    routes.append(route)
+
+    # Fallback if OR-Tools missing or no routes created
+    if not routes:
+        try:
+            from sklearn.cluster import KMeans
+            import numpy as np
+            if len(pts) <= 2 or k == 1:
+                routes = [solve_route(M)]
+            else:
+                arr = np.array(pts[1:])
+                km = KMeans(n_clusters=min(k, len(arr)), n_init=10, random_state=42)
+                labs = km.fit_predict(arr)
+                routes = []
+                for cl in range(labs.max()+1):
+                    idxs = [i+1 for i, lab in enumerate(labs) if lab == cl]
+                    if not idxs: continue
+                    sub = [0] + idxs
+                    subM = [[M[a][b] for b in sub] for a in sub]
+                    sub_route = solve_route(subM)
+                    routes.append([sub[i] for i in sub_route])
+        except Exception:
+            routes = [list(range(len(pts)))]
+
+    def seq_km(route):
+        km = 0.0
+        for i in range(len(route)-1):
+            a, b = route[i], route[i+1]
+            km += M[a][b]/1000.0
+        return km
+
+    rkms = [seq_km(r) for r in routes]
+    return {"routes": routes, "labels": labels, "points": pts, "dist_km": rkms, "total_km": float(sum(rkms))}
 
 def solve_route(distance_matrix: list[list[int]]):
     n = len(distance_matrix)
@@ -980,7 +1108,42 @@ with _tab2:
             """,
             unsafe_allow_html=True,
         )
+def _minute_horizon(day_hours: int = 24) -> int:
+    return day_hours * 60
 
+def _derive_windows_from_row(r: pd.Series) -> tuple[int,int]:
+    now = pd.Timestamp.now()
+    for a, b in [("scheduled_start","scheduled_end"), ("RequestedStartDate","RequestedEndDate")]:
+        if a in r and b in r and pd.notna(r[a]) and pd.notna(r[b]):
+            ws = int(max(0, (pd.to_datetime(r[a]) - now).total_seconds() // 60))
+            we = int(max(ws+30, (pd.to_datetime(r[b]) - now).total_seconds() // 60))
+            return (ws, we)
+    pri = str(r.get("priority", r.get("PriorityName","Routine"))).strip()
+    if pri.upper() == "STAT": return (0, 240)
+    if pri.lower() == "urgent": return (0, 1440)
+    pref = str(r.get("patient_pref","none"))
+    if pref == "am": return (8*60, 12*60)
+    if pref == "pm": return (12*60, 17*60)
+    if pref == "eve": return (17*60, 20*60)
+    return (8*60, 20*60)
+
+def _make_stops_from_df(rows: pd.DataFrame) -> list[dict]:
+    out = []
+    for _, r in rows.iterrows():
+        equip = str(r.get("equipment_type","bp_monitor"))
+        meta  = EQUIPMENT_CATALOG.get(equip, {"prep_min": 10, "skill": "general"})
+        tws, twe = _derive_windows_from_row(r)
+        out.append({
+            "order_id": str(r.get("order_id","")),
+            "equipment_type": equip,
+            "lat": float(r.get("patient_lat", 0.0)),
+            "lon": float(r.get("patient_lon", 0.0)),
+            "skill_req": meta.get("skill","general"),
+            "service_min": int(meta.get("prep_min", 10)),
+            "tw_start": int(max(0, tws)),
+            "tw_end": int(min(_minute_horizon(), max(tws+30, twe))),
+        })
+    return out
 # Routing (VRP‑lite)
 # Routing (multi-route VRP)
 with _tab3:
@@ -1037,16 +1200,16 @@ with _tab3:
     ]
 
     # solve
-    plan = plan_multi_routes_with_constraints(
-        (depot_lat, depot_lon),
-        stops_payload,
-        num_routes=n_routes,
-        capacity_per_vehicle=cap,
-        enforce_skills=enforce_sk,
-        use_time_windows=use_tw,
-        speed_kmh=speed,
-    )
 
+    plan = plan_multi_routes_with_constraints(
+    (depot_lat, depot_lon),
+    stops_payload,
+    num_routes=n_routes,
+    capacity_per_vehicle=cap,
+    enforce_skills=enforce_sk,
+    use_time_windows=use_tw,
+    speed_kmh=speed,
+)
     # Show routes
     st.markdown("### Suggested routes")
     cols = st.columns(min(3, max(1, len(plan["routes"]))))
