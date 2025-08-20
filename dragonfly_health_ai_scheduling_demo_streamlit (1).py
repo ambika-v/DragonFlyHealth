@@ -982,45 +982,119 @@ with _tab2:
         )
 
 # Routing (VRP‑lite)
-with _tab3:
-    st.subheader("Route planning from facility → patients (demo)")
-    h_opts = {h["hospital_id"]:h for h in HOSPITALS}
-    h_sel = st.selectbox("Facility", options=list(h_opts.keys()), format_func=lambda x: f"{x} — {h_opts[x]['name']}", key="facility_routing")
-    h_lat, h_lon = h_opts[h_sel]["lat"], h_opts[h_sel]["lon"]
-    dfh = raw_df[raw_df["hospital_id"]==h_sel].copy()
-    seed = dfh.sample(1).iloc[0] if not dfh.empty else raw_df.sample(1).iloc[0]
-    st.markdown(f"**Seed order:** {seed['order_id']} · equipment: `{seed['equipment_type']}` · priority: `{seed['priority']}`")
+# Routing (multi-route VRP)
+with _tab5:
+    st.subheader("Route planning — multiple routes/technicians")
 
-    def nearest_neighbors(df, center_lat, center_lon, k=4):
-        df = df.copy(); df["dist"] = df.apply(lambda r: haversine_km(center_lat, center_lon, r["patient_lat"], r["patient_lon"]), axis=1)
-        return df.nsmallest(k, "dist")
+    # Controls
+    h_opts = {h["hospital_id"]: h for h in HOSPITALS}
+    c1, c2, c3 = st.columns(3)
+    with c1:
+        h_sel = st.selectbox(
+            "Facility",
+            options=list(h_opts.keys()),
+            format_func=lambda x: f"{x} — {h_opts[x]['name']}",
+            key="facility_routing_v2",
+        )
+    with c2:
+        n_orders = st.slider("Number of orders", 4, 40, 12, 1, key="n_orders_v2")
+    with c3:
+        n_routes = st.slider("Number of routes (technicians)", 1, 6, 3, 1, key="n_routes_v2")
 
-    neighbors = nearest_neighbors(dfh, float(seed["patient_lat"]), float(seed["patient_lon"]), k=4)
-    stops = pd.concat([seed.to_frame().T, neighbors]).drop_duplicates("order_id").head(5)
+    # Choose depot and sample closest orders to plan
+    depot_lat, depot_lon = h_opts[h_sel]["lat"], h_opts[h_sel]["lon"]
+    fac_df = raw_df[raw_df["hospital_id"] == h_sel].copy()
+    if fac_df.empty:
+        fac_df = raw_df.copy()
 
-    pts = [(h_lat, h_lon)] + list(zip(stops["patient_lat"].astype(float), stops["patient_lon"].astype(float)))
-    distM = build_distance_matrix(pts)
-    route_idx = solve_route(distM)
+    # Pick a seed and nearest neighbors to get n_orders stops
+    def _nearest(df, center_lat, center_lon, k):
+        d = df.copy()
+        d["dist"] = d.apply(lambda r: haversine_km(center_lat, center_lon, float(r["patient_lat"]), float(r["patient_lon"])), axis=1)
+        return d.nsmallest(k, "dist")
 
-    route_labels = ["Facility"] + [f"{row.order_id} ({row.equipment_type})" for _,row in stops.iterrows()]
-    pretty_route = [route_labels[i] for i in route_idx]
+    pool = _nearest(fac_df, depot_lat, depot_lon, min(len(fac_df), max(5, n_orders)))
+    pool = pool.head(n_orders)
 
-    st.markdown("### Suggested visit order")
-    for step, label in enumerate(pretty_route, 1):
-        st.markdown(f"{step}. **{label}**")
+    stops = [
+        {
+            "order_id": str(r["order_id"]),
+            "equipment_type": str(r["equipment_type"]),
+            "patient_lat": float(r["patient_lat"]),
+            "patient_lon": float(r["patient_lon"]),
+        }
+        for _, r in pool.iterrows()
+    ]
 
-    total_km = sum(haversine_km(pts[route_idx[i]][0], pts[route_idx[i]][1], pts[route_idx[i+1]][0], pts[route_idx[i+1]][1]) for i in range(len(route_idx)-1))
-    st.metric("Total distance (km)", f"{total_km:.1f}")
+    # Plan routes
+    plan = plan_multi_routes_from_points((depot_lat, depot_lon), stops, num_routes=n_routes)
 
-    st.markdown("#### Map (lat/lon preview)")
-    map_df = pd.DataFrame({
-        "lat": [p[0] for p in pts],
-        "lon": [p[1] for p in pts],
-        "label": ["Facility"] + list(stops["order_id"]),
-    })
-    st.map(map_df.rename(columns={"lon":"longitude","lat":"latitude"}))
+    # Show summary
+    st.markdown("### Suggested routes")
+    rcols = st.columns(min(3, max(1, len(plan["routes"]))))
+    for idx, route in enumerate(plan["routes"]):
+        with rcols[idx % len(rcols)]:
+            st.markdown(f"**Route {idx+1}**  \nDistance: **{plan['dist_km'][idx]:.1f} km**")
+            for step, pidx in enumerate(route):
+                st.markdown(f"{step+1}. {plan['labels'][pidx]}")
 
-    st.info("For production: upgrade to OR‑Tools VRPTW with time windows, skills, capacities.")
+    st.markdown("---")
+    kpi("Total distance (km)", f"{plan['total_km']:.1f}", "All routes combined")
+
+    # Map: plot depot + all stops, color by route (simple labels)
+    map_df = []
+    for r_i, route in enumerate(plan["routes"], 1):
+        for pidx in route:
+            lat, lon = plan["points"][pidx]
+            map_df.append({"latitude": lat, "longitude": lon, "Route": f"Route {r_i}", "label": plan["labels"][pidx]})
+    map_df = pd.DataFrame(map_df)
+    if not map_df.empty:
+        st.markdown("#### Map preview")
+        st.map(map_df.rename(columns={"longitude": "longitude", "latitude": "latitude"}))
+    else:
+        st.info("No routes to display for current selection.")
+
+    st.caption("Tip: if OR-Tools is available, the solver uses a proper VRP. Otherwise, it clusters orders and runs a greedy route inside each cluster.")
+
+# with _tab3:
+#     st.subheader("Route planning from facility → patients (demo)")
+#     h_opts = {h["hospital_id"]:h for h in HOSPITALS}
+#     h_sel = st.selectbox("Facility", options=list(h_opts.keys()), format_func=lambda x: f"{x} — {h_opts[x]['name']}", key="facility_routing")
+#     h_lat, h_lon = h_opts[h_sel]["lat"], h_opts[h_sel]["lon"]
+#     dfh = raw_df[raw_df["hospital_id"]==h_sel].copy()
+#     seed = dfh.sample(1).iloc[0] if not dfh.empty else raw_df.sample(1).iloc[0]
+#     st.markdown(f"**Seed order:** {seed['order_id']} · equipment: `{seed['equipment_type']}` · priority: `{seed['priority']}`")
+
+#     def nearest_neighbors(df, center_lat, center_lon, k=4):
+#         df = df.copy(); df["dist"] = df.apply(lambda r: haversine_km(center_lat, center_lon, r["patient_lat"], r["patient_lon"]), axis=1)
+#         return df.nsmallest(k, "dist")
+
+#     neighbors = nearest_neighbors(dfh, float(seed["patient_lat"]), float(seed["patient_lon"]), k=4)
+#     stops = pd.concat([seed.to_frame().T, neighbors]).drop_duplicates("order_id").head(5)
+
+#     pts = [(h_lat, h_lon)] + list(zip(stops["patient_lat"].astype(float), stops["patient_lon"].astype(float)))
+#     distM = build_distance_matrix(pts)
+#     route_idx = solve_route(distM)
+
+#     route_labels = ["Facility"] + [f"{row.order_id} ({row.equipment_type})" for _,row in stops.iterrows()]
+#     pretty_route = [route_labels[i] for i in route_idx]
+
+#     st.markdown("### Suggested visit order")
+#     for step, label in enumerate(pretty_route, 1):
+#         st.markdown(f"{step}. **{label}**")
+
+#     total_km = sum(haversine_km(pts[route_idx[i]][0], pts[route_idx[i]][1], pts[route_idx[i+1]][0], pts[route_idx[i+1]][1]) for i in range(len(route_idx)-1))
+#     st.metric("Total distance (km)", f"{total_km:.1f}")
+
+#     st.markdown("#### Map (lat/lon preview)")
+#     map_df = pd.DataFrame({
+#         "lat": [p[0] for p in pts],
+#         "lon": [p[1] for p in pts],
+#         "label": ["Facility"] + list(stops["order_id"]),
+#     })
+#     st.map(map_df.rename(columns={"lon":"longitude","lat":"latitude"}))
+
+#     st.info("For production: upgrade to OR‑Tools VRPTW with time windows, skills, capacities.")
 
 # Equipment • ETA • Technicians
 with _tab4:
