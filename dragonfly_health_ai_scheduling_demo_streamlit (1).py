@@ -1195,15 +1195,15 @@ with _tab3:
     for c in needed:
         if c not in pool.columns:
         # Default types: dates as NaT, others as NaN/empty
-        if any(k in c.lower() for k in ["date","time","scheduled","start","end"]):
+           if any(k in c.lower() for k in ["date","time","scheduled","start","end"]):
             pool[c] = pd.NaT
-        elif c in ("order_id","equipment_type","priority","patient_pref"):
+           elif c in ("order_id","equipment_type","priority","patient_pref"):
             pool[c] = ""
-        else:
+           else:
             pool[c] = np.nan
 
-# Now select in the intended order
-    stops_df = pool[needed].copy()
+    # Now select in the intended order
+       stops_df = pool[needed].copy()
 
     # shape stops
     shaped = _make_stops_from_df(stops_df.rename(columns={"patient_lat":"patient_lat", "patient_lon":"patient_lon"}))
