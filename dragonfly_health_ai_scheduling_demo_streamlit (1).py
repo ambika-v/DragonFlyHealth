@@ -61,7 +61,69 @@ st.set_page_config(
     layout="wide",
     initial_sidebar_state="expanded",
 )
+import streamlit as st
+from datetime import datetime
 
+# ---------- SIMPLE LOGIN GATE ----------
+# 1) Add your allowed users here. Keys must match exactly what users type.
+ALLOWED_USERS = {
+    "Urvashi Patel": {"role": "pm"},
+    "Ambika Varma": {"role": "owner"},
+    # add more like:
+    # "John Doe": {"role": "viewer"},
+}
+
+def _check_passcode(name: str, entered: str) -> bool:
+    """
+    Compares entered passcode to what's in st.secrets for this user.
+    Create secrets like:
+    [[secrets]]
+    PASSCODES = {"Urvashi Patel": "1234", "Ambika Varma": "abcd"}
+    """
+    pc_map = st.secrets.get("PASSCODES", {})
+    expected = pc_map.get(name)
+    return bool(expected) and (entered == expected)
+
+def login_gate():
+    if st.session_state.get("authenticated"):
+        return True  # already logged in
+
+    st.markdown("### 🔐 Sign in")
+    name = st.text_input("Your name (e.g., Urvashi Patel)")
+    passcode = st.text_input("Passcode", type="password")
+    go = st.button("Sign in")
+
+    if go:
+        if name in ALLOWED_USERS and _check_passcode(name, passcode):
+            st.session_state.authenticated = True
+            st.session_state.user_name = name
+            st.session_state.user_role = ALLOWED_USERS[name]["role"]
+            st.session_state.login_time = datetime.now().strftime("%Y-%m-%d %H:%M")
+            st.success(f"Welcome, {name}!")
+            st.rerun()
+        else:
+            st.error("Invalid name or passcode.")
+
+    # Stop the rest of the app until they sign in
+    st.stop()
+
+def show_user_chip():
+    u = st.session_state.get("user_name", "Guest")
+    r = st.session_state.get("user_role", "")
+    st.markdown(
+        f"<div style='padding:6px 10px;border-radius:999px;background:#e6f7e6;"
+        f"border:1px solid #b3e6cc;display:inline-block;color:#114E7A;'>"
+        f"👤 {u} &nbsp;•&nbsp; {r}</div>",
+        unsafe_allow_html=True,
+    )
+    if st.button("Logout"):
+        for k in ("authenticated","user_name","user_role","login_time"):
+            st.session_state.pop(k, None)
+        st.rerun()
+
+# ------ USE THE GATE ------
+login_gate()   # <-- call this BEFORE building the rest of your UI
+# (after this line, the user is signed in)
 
 # ---------------------------
 # Global CSS (escaped braces for f-strings)
