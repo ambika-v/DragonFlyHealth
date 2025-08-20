@@ -656,6 +656,118 @@ def build_distance_matrix(points: list[tuple[float,float]]):
             else: M[i][j] = int(haversine_km(points[i][0], points[i][1], points[j][0], points[j][1]) * 1000)
     return M
 
+# ---------------------------
+# Multi-route planning (K vehicles)
+# ---------------------------
+from typing import List, Dict
+
+def plan_multi_routes_from_points(
+    depot: tuple[float, float],
+    stops: List[Dict],
+    num_routes: int = 2,
+) -> Dict:
+    """
+    Returns {'routes': [ [indices...], ... ], 'labels': [...], 'points': [(lat,lon),...], 'dist_km': [..], 'total_km': float}
+    Index 0 is always the depot. Each route is a list of point indices in visit order (including depot start/end).
+    """
+
+    pts = [depot] + [(float(r["patient_lat"]), float(r["patient_lon"])) for r in stops]
+    labels = ["Facility"] + [f'{r["order_id"]} ({r["equipment_type"]})' for r in stops]
+    M = build_distance_matrix(pts)  # uses your existing helper (meters)
+
+    # If OR-Tools available: solve VRP with K vehicles starting/ending at depot
+    if HAS_ORTOOLS and len(pts) > 2 and num_routes >= 1:
+        from ortools.constraint_solver import pywrapcp, routing_enums_pb2
+
+        n = len(pts)
+        manager = pywrapcp.RoutingIndexManager(n, num_routes, 0)           # all start at depot 0
+        routing = pywrapcp.RoutingModel(manager)
+
+        def cb(fi, ti):
+            f = manager.IndexToNode(fi); t = manager.IndexToNode(ti)
+            return M[f][t]
+
+        transit_idx = routing.RegisterTransitCallback(cb)
+        routing.SetArcCostEvaluatorOfAllVehicles(transit_idx)
+
+        # All vehicles start & end at depot
+        for v in range(num_routes):
+            routing.SetStartDepot(v, 0)
+            routing.SetEndDepot(v, 0)
+
+        # Balance routes a bit by adding a soft maximum number of nodes per vehicle
+        # (not strictly necessary; helps avoid empty routes on small instances)
+        # You can also add time windows / capacities here later.
+
+        params = pywrapcp.DefaultRoutingSearchParameters()
+        params.first_solution_strategy = routing_enums_pb2.FirstSolutionStrategy.PATH_CHEAPEST_ARC
+        params.local_search_metaheuristic = routing_enums_pb2.LocalSearchMetaheuristic.GUIDED_LOCAL_SEARCH
+        params.time_limit.seconds = 2  # keep it snappy for the demo
+
+        sol = routing.SolveWithParameters(params)
+        routes = []
+        if sol:
+            for v in range(num_routes):
+                idx = routing.Start(v)
+                route = []
+                while not routing.IsEnd(idx):
+                    route.append(manager.IndexToNode(idx))
+                    idx = sol.Value(routing.NextVar(idx))
+                route.append(manager.IndexToNode(idx))  # end
+                # Avoid returning trivial [0,0] routes
+                if len(route) > 2:
+                    routes.append(route)
+        else:
+            routes = []
+
+        if not routes:
+            # Fallback if solver returned empties
+            routes = [list(range(0, len(pts)))]  # one greedy route as last resort
+
+    else:
+        # Fallback: KMeans cluster patients into K clusters, then greedy TSP inside each
+        from sklearn.cluster import KMeans
+        import numpy as np
+
+        k = max(1, int(num_routes))
+        if len(pts) <= 2 or k == 1:
+            # Just one greedy route including all stops
+            route = solve_route(M)  # your single-route greedy/ORTools helper
+            routes = [route]
+        else:
+            arr = np.array(pts[1:])  # patients only
+            km = KMeans(n_clusters=min(k, len(arr)), n_init=10, random_state=42)
+            labels_k = km.fit_predict(arr)
+
+            routes = []
+            for cl in range(labels_k.max()+1):
+                idxs = [i+1 for i, lab in enumerate(labels_k) if lab == cl]  # +1 due to depot at 0
+                if not idxs:
+                    continue
+                # Build sub-matrix for [0] + cluster points
+                sub_map = [0] + idxs
+                subM = [[M[a][b] for b in sub_map] for a in sub_map]
+                sub_route = solve_route(subM)  # returns indices in sub_map-space
+                # Map back to original indices
+                full_route = [sub_map[i] for i in sub_route]
+                routes.append(full_route)
+
+    # Compute distances
+    def seq_km(route):
+        km = 0.0
+        for i in range(len(route)-1):
+            a, b = route[i], route[i+1]
+            km += M[a][b] / 1000.0
+        return km
+
+    rkms = [seq_km(r) for r in routes]
+    return {
+        "routes": routes,
+        "labels": labels,
+        "points": pts,
+        "dist_km": rkms,
+        "total_km": float(sum(rkms)),
+    }
 
 def solve_route(distance_matrix: list[list[int]]):
     n = len(distance_matrix)
