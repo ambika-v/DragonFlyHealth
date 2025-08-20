@@ -6,7 +6,6 @@ import os, io, math, random, base64
 from pathlib import Path
 from datetime import datetime, timedelta
 
-import streamlit_authenticator as stauth
 
 
 import numpy as np
@@ -63,25 +62,7 @@ st.set_page_config(
     initial_sidebar_state="expanded",
 )
 
-names = ["Urvashi Patel", "Ambika Varma"]
-usernames = ["urvashi", "ambika"]
 
-# Create hashed passwords with stauth.Hasher(["plain1","plain2"]).generate()
-# Store them in st.secrets instead of hardcoding:
-hashed_pwds = st.secrets["HASHED_PASSWORDS"]  # list of bcrypt hashes
-
-authenticator = stauth.Authenticate(
-    names, usernames, hashed_pwds,
-    "df_auth_cookie", "df_auth_key", cookie_expiry_days=7
-)
-
-name, auth_status, username = authenticator.login("Login", "main")
-
-if auth_status:
-    st.success(f"Welcome, {name}")
-    authenticator.logout("Logout", "sidebar")
-else:
-    st.stop()
 # ---------------------------
 # Global CSS (escaped braces for f-strings)
 # ---------------------------
@@ -725,6 +706,7 @@ render_navbar()
 with st.sidebar:
     if os.path.exists(LOGO_PATH):
         st.image(LOGO_PATH, use_container_width=True)
+        show_user_chip()
     st.markdown("---")
     if st.button("▶ Play demo", use_container_width=True):
         run_demo_status()
