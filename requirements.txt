@@ -6,3 +6,5 @@ altair
 python-dateutil
 ortools
 geopy
+streamlit-authenticator==0.4.1
+bcrypt
