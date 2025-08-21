@@ -7,7 +7,7 @@ from pathlib import Path
 from datetime import datetime, timedelta
 
 
-
+import pydeck as pdk
 import numpy as np
 import pandas as pd
 import altair as alt
@@ -1245,8 +1245,123 @@ with _tab3:
             lat, lon = plan["points"][pidx]
             map_rows.append({"latitude": lat, "longitude": lon, "Route": f"Route {r_i}", "label": plan["labels"][pidx]})
     if map_rows:
-        st.markdown("#### Map preview")
-        st.map(pd.DataFrame(map_rows))
+        # ---------- Multi-color route map (pydeck) ----------
+# We expect `plan` dict from your solver:
+# plan["routes"] : list of routes, each a list of node indices (0 = depot)
+# plan["points"] : list of (lat, lon) for each node (0 = depot)
+# plan["labels"] : label per node
+
+st.markdown("#### Route map (colored paths)")
+
+routes = plan["routes"]
+points = plan["points"]   # [(lat, lon), ...] 0 = depot
+labels = plan["labels"]   # ["Facility", "ORD-...", ...]
+
+if routes and points:
+    # Color palette (RGB)
+    palette = [
+        [230, 57, 70],    # red
+        [29, 53, 87],     # blue
+        [42, 157, 143],   # green/teal
+        [244, 162, 97],   # orange
+        [38, 70, 83],     # dark teal
+        [168, 218, 220],  # light blue
+        [233, 196, 106],  # yellow
+        [90, 90, 200],    # purple-ish
+    ]
+
+    # Build line features per route (depot -> stops -> depot)
+    line_features = []
+    stop_features = []
+    for r_i, route in enumerate(routes):
+        color = palette[r_i % len(palette)]
+        # Build the polyline path as list of [lon, lat] coords
+        # Ensure depot start/end: if your route already includes 0 at both ends, you can skip this wrapper
+        path_idx = route
+        if route[0] != 0:
+            path_idx = [0] + route
+        if route[-1] != 0:
+            path_idx = path_idx + [0]
+
+        path = [[float(points[i][1]), float(points[i][0])] for i in path_idx]  # [lon, lat]
+
+        line_features.append({
+            "path": path,
+            "color": color,
+            "name": f"Route {r_i+1}",
+        })
+
+        # Stops (exclude depot index 0 when making colored stop markers)
+        for pidx in route:
+            if pidx == 0:
+                continue
+            lat, lon = float(points[pidx][0]), float(points[pidx][1])
+            stop_features.append({
+                "position": [lon, lat],
+                "color": color,
+                "route": f"Route {r_i+1}",
+                "label": labels[pidx] if pidx < len(labels) else f"Stop {pidx}",
+            })
+
+    # Depot marker
+    depot_lat, depot_lon = float(points[0][0]), float(points[0][1])
+    depot_df = pd.DataFrame([{"position": [depot_lon, depot_lat], "label": "Facility"}])
+
+    # DataFrames for pydeck
+    lines_df = pd.DataFrame(line_features)
+    stops_df = pd.DataFrame(stop_features)
+
+    # Layers
+    line_layer = pdk.Layer(
+        "PathLayer",
+        data=lines_df,
+        get_path="path",
+        get_color="color",
+        width_scale=1,
+        width_min_pixels=3,
+        opacity=0.7,
+        pickable=True,
+    )
+
+    stops_layer = pdk.Layer(
+        "ScatterplotLayer",
+        data=stops_df,
+        get_position="position",
+        get_color="color",
+        get_radius=50,           # meters
+        radius_min_pixels=4,
+        pickable=True,
+    )
+
+    depot_layer = pdk.Layer(
+        "ScatterplotLayer",
+        data=depot_df,
+        get_position="position",
+        get_color=[0, 0, 0],
+        get_radius=80,
+        radius_min_pixels=5,
+        pickable=True,
+    )
+
+    # View centered on depot
+    view_state = pdk.ViewState(
+        latitude=depot_lat,
+        longitude=depot_lon,
+        zoom=11,
+        pitch=0,
+        bearing=0,
+    )
+
+    r = pdk.Deck(
+        layers=[line_layer, stops_layer, depot_layer],
+        initial_view_state=view_state,
+        tooltip={"text": "{label} {name}{route}"},
+        map_style="mapbox://styles/mapbox/light-v9",  # default basemap
+    )
+
+    st.pydeck_chart(r, use_container_width=True)
+else:
+    st.info("No routes to display with current selection.")
     else:
         st.info("No routes to display with current selection.")
 # with _tab3:
