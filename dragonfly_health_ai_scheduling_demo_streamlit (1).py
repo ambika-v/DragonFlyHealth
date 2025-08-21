@@ -1257,7 +1257,7 @@ routes = plan["routes"]
 points = plan["points"]   # [(lat, lon), ...] 0 = depot
 labels = plan["labels"]   # ["Facility", "ORD-...", ...]
 
-  if routes and points:
+if routes and points:
     # Color palette (RGB)
     palette = [
         [230, 57, 70],    # red
