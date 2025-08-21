@@ -1273,7 +1273,7 @@ if routes and points:
     # Build line features per route (depot -> stops -> depot)
     line_features = []
     stop_features = []
-  for r_i, route in enumerate(routes):
+for r_i, route in enumerate(routes):
         color = palette[r_i % len(palette)]
         # Build the polyline path as list of [lon, lat] coords
         # Ensure depot start/end: if your route already includes 0 at both ends, you can skip this wrapper
