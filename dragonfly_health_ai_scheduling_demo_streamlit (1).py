@@ -1359,7 +1359,7 @@ r = pdk.Deck(
         map_style="mapbox://styles/mapbox/light-v9",  # default basemap
 )
 
-    st.pydeck_chart(r, use_container_width=True)
+st.pydeck_chart(r, use_container_width=True)
 else:
     st.info("No routes to display with current selection.")
     else:
