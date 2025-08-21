@@ -1021,7 +1021,7 @@ st.markdown("<div class='divider'></div>", unsafe_allow_html=True)
 left, right = st.columns([2,1])
 with left:
     st.subheader("Data source")
-    up = st.file_uploader("Upload CSV (optional)", type=["csv"])
+    up = st.file_uploader("Upload data (CSV or Excel .xlsx)", type=["csv", "xlsx"])
     raw_df = load_input_df(up)
     st.success(f"Loaded {len(raw_df):,} orders")
 with right:
