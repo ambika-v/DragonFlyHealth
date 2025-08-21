@@ -8,3 +8,4 @@ ortools
 geopy
 streamlit-authenticator==0.4.1
 bcrypt
+openpyxl>=3.1
