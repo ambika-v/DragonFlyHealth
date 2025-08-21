@@ -1345,23 +1345,39 @@ if map_rows:
         )
 
         # View centered on depot
+        # Basemap: OpenStreetMap (no token needed)
+        basemap = pdk.Layer(
+            "TileLayer",
+            data="https://c.tile.openstreetmap.org/{z}/{x}/{y}.png",
+            min_zoom=0,
+            max_zoom=19,
+            tile_size=256,
+       )
+
+       
         view_state = pdk.ViewState(
             latitude=depot_lat,
             longitude=depot_lon,
             zoom=11,
             pitch=0,
             bearing=0,
-        )
+       )
+        # view_state = pdk.ViewState(
+        #     latitude=depot_lat,
+        #     longitude=depot_lon,
+        #     zoom=11,
+        #     pitch=0,
+        #     bearing=0,
+        # )
 
         r = pdk.Deck(
-            layers=[line_layer, stops_layer, depot_layer],
-            initial_view_state=view_state,
-            tooltip={"text": "{label} {name}{route}"},
-            map_style="mapbox://styles/mapbox/light-v9",  # default basemap
-        )
+    layers=[basemap, line_layer, stops_layer, depot_layer],
+    initial_view_state=view_state,
+    map_style=None,  # IMPORTANT: disable Mapbox style so OSM shows
+    tooltip={"text": "{label} {name}{route}"},
+)
 
         st.pydeck_chart(r, use_container_width=True)
-
     else:
         st.info("No routes to display with current selection.")
 # with _tab3:
