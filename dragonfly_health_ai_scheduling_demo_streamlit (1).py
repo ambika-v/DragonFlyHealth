@@ -529,47 +529,125 @@ def make_synthetic(n_orders: int = 1500, start_date: datetime | None = None) -> 
 
 
 def load_input_df(upload: io.BytesIO | None) -> pd.DataFrame:
+    """
+    Load data from CSV or Excel (.xlsx).
+    - If no file is uploaded, returns a synthetic dataset for demo.
+    - After loading, it maps/creates expected columns and coerces datetimes.
+    """
     if upload is None:
         return make_synthetic()
-    df = pd.read_csv(upload)
+
+    name = getattr(upload, "name", "").lower()
+
+    # 1) Read the file
+    try:
+        if name.endswith(".xlsx"):
+            # Requires openpyxl in requirements.txt
+            df = pd.read_excel(upload, engine="openpyxl")
+        elif name.endswith(".csv") or name == "":
+            # Default to CSV if extension missing
+            df = pd.read_csv(upload)
+        else:
+            # Fallback try Excel first, then CSV
+            try:
+                df = pd.read_excel(upload, engine="openpyxl")
+            except Exception:
+                upload.seek(0)
+                df = pd.read_csv(upload)
+    except Exception as e:
+        st.error(f"Could not read file: {e}")
+        # Fall back to synthetic so the app still runs
+        return make_synthetic()
+
+    # 2) Map incoming columns -> expected schema (robust to missing columns)
     mapped = {}
     for k, candidates in EXPECTED_COLUMNS.items():
         series = _coalesce(df, k, candidates)
         if series is None:
-            if k in ("distance_km","resource_load"):
-                mapped[k] = np.random.uniform(5,45,len(df)) if k=="distance_km" else np.random.uniform(0.4,0.9,len(df))
+            # Create sensible defaults if missing
+            n = len(df)
+            if k in ("distance_km", "resource_load"):
+                mapped[k] = np.random.uniform(5, 45, n) if k == "distance_km" else np.random.uniform(0.4, 0.9, n)
             elif k == "window_len_hrs":
-                mapped[k] = np.random.choice([2,4,6], size=len(df))
+                mapped[k] = np.random.choice([2, 4, 6], size=n)
             elif k == "channel":
-                mapped[k] = np.random.choice(CHANNELS, size=len(df))
+                mapped[k] = np.random.choice(CHANNELS, size=n)
             elif k == "patient_pref":
-                mapped[k] = np.random.choice(PREF_ORDER, size=len(df))
-            elif k in ("requested_at","due_by","scheduled_start","scheduled_end"):
-                now = datetime.now(); mapped[k] = [now + timedelta(hours=int(i)%48) for i in range(len(df))]
+                mapped[k] = np.random.choice(PREF_ORDER, size=n)
+            elif k in ("requested_at", "due_by", "scheduled_start", "scheduled_end"):
+                now = datetime.now()
+                mapped[k] = [now + timedelta(hours=int(i) % 48) for i in range(n)]
             elif k == "priority":
-                mapped[k] = np.random.choice(PRIORITY_ORDER, size=len(df))
+                mapped[k] = np.random.choice(PRIORITY_ORDER, size=n)
             elif k == "adjusted":
-                mapped[k] = np.random.binomial(1, 0.2, size=len(df))
-            elif k in ("patient_lat","patient_lon"):
-                mapped[k] = np.random.uniform(42.2,42.5,len(df)) if k=="patient_lat" else np.random.uniform(-71.3,-70.9,len(df))
-            elif k in ("hospital_lat","hospital_lon"):
-                h = random.choice(HOSPITALS); mapped[k] = [h["lat"]]*len(df) if k=="hospital_lat" else [h["lon"]]*len(df)
+                mapped[k] = np.random.binomial(1, 0.2, size=n)
+            elif k in ("patient_lat", "patient_lon"):
+                mapped[k] = np.random.uniform(42.2, 42.5, n) if k == "patient_lat" else np.random.uniform(-71.3, -70.9, n)
+            elif k in ("hospital_lat", "hospital_lon"):
+                h = random.choice(HOSPITALS)
+                mapped[k] = [h["lat"]]*n if k == "hospital_lat" else [h["lon"]]*n
             elif k == "hospital_id":
-                mapped[k] = [random.choice(HOSPITALS)["hospital_id"] for _ in range(len(df))]
+                mapped[k] = [random.choice(HOSPITALS)["hospital_id"] for _ in range(n)]
             elif k == "patient_id":
-                mapped[k] = [f"P-{700000+i}" for i in range(len(df))]
+                mapped[k] = [f"P-{700000+i}" for i in range(n)]
             elif k == "equipment_type":
-                mapped[k] = np.random.choice(EQUIPMENT, size=len(df))
+                mapped[k] = np.random.choice(EQUIPMENT, size=n)
             elif k == "tech_skill":
-                mapped[k] = np.random.choice(TECH_SKILLS, size=len(df))
+                mapped[k] = np.random.choice(TECH_SKILLS, size=n)
             else:
-                mapped[k] = [f"UNK-{i}" for i in range(len(df))]
+                mapped[k] = [f"UNK-{i}" for i in range(n)]
         else:
             mapped[k] = series
+
     out = pd.DataFrame(mapped)
-    for c in ["requested_at","due_by","scheduled_start","scheduled_end"]:
-        out[c] = pd.to_datetime(out[c])
+
+    # 3) Coerce datetimes safely (ignore errors)
+    for c in ["requested_at", "due_by", "scheduled_start", "scheduled_end"]:
+        out[c] = pd.to_datetime(out[c], errors="coerce")
+
     return out
+# def load_input_df(upload: io.BytesIO | None) -> pd.DataFrame:
+#     if upload is None:
+#         return make_synthetic()
+#     df = pd.read_csv(upload)
+#     mapped = {}
+#     for k, candidates in EXPECTED_COLUMNS.items():
+#         series = _coalesce(df, k, candidates)
+#         if series is None:
+#             if k in ("distance_km","resource_load"):
+#                 mapped[k] = np.random.uniform(5,45,len(df)) if k=="distance_km" else np.random.uniform(0.4,0.9,len(df))
+#             elif k == "window_len_hrs":
+#                 mapped[k] = np.random.choice([2,4,6], size=len(df))
+#             elif k == "channel":
+#                 mapped[k] = np.random.choice(CHANNELS, size=len(df))
+#             elif k == "patient_pref":
+#                 mapped[k] = np.random.choice(PREF_ORDER, size=len(df))
+#             elif k in ("requested_at","due_by","scheduled_start","scheduled_end"):
+#                 now = datetime.now(); mapped[k] = [now + timedelta(hours=int(i)%48) for i in range(len(df))]
+#             elif k == "priority":
+#                 mapped[k] = np.random.choice(PRIORITY_ORDER, size=len(df))
+#             elif k == "adjusted":
+#                 mapped[k] = np.random.binomial(1, 0.2, size=len(df))
+#             elif k in ("patient_lat","patient_lon"):
+#                 mapped[k] = np.random.uniform(42.2,42.5,len(df)) if k=="patient_lat" else np.random.uniform(-71.3,-70.9,len(df))
+#             elif k in ("hospital_lat","hospital_lon"):
+#                 h = random.choice(HOSPITALS); mapped[k] = [h["lat"]]*len(df) if k=="hospital_lat" else [h["lon"]]*len(df)
+#             elif k == "hospital_id":
+#                 mapped[k] = [random.choice(HOSPITALS)["hospital_id"] for _ in range(len(df))]
+#             elif k == "patient_id":
+#                 mapped[k] = [f"P-{700000+i}" for i in range(len(df))]
+#             elif k == "equipment_type":
+#                 mapped[k] = np.random.choice(EQUIPMENT, size=len(df))
+#             elif k == "tech_skill":
+#                 mapped[k] = np.random.choice(TECH_SKILLS, size=len(df))
+#             else:
+#                 mapped[k] = [f"UNK-{i}" for i in range(len(df))]
+#         else:
+#             mapped[k] = series
+#     out = pd.DataFrame(mapped)
+#     for c in ["requested_at","due_by","scheduled_start","scheduled_end"]:
+#         out[c] = pd.to_datetime(out[c])
+#     return out
 
 # ---------------------------
 # Modeling & scoring (more in Part 2)
