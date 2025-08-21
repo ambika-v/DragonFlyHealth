@@ -1239,7 +1239,7 @@ with _tab3:
     kpi("Total distance (km)", f"{plan['total_km']:.1f}", "All routes combined")
 
     # Map
-   map_rows = []
+      map_rows = []
 for r_i, route in enumerate(plan["routes"], 1):
     for pidx in route:
         lat, lon = plan["points"][pidx]
