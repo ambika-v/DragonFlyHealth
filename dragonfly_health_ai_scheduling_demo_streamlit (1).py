@@ -1020,7 +1020,7 @@ st.markdown("<div class='divider'></div>", unsafe_allow_html=True)
 # Data + Model
 left, right = st.columns([2,1])
 with left:
-    st.subheader("📂 Data source")
+    st.subheader("Data source")
     up = st.file_uploader("Upload CSV (optional)", type=["csv"])
     raw_df = load_input_df(up)
     st.success(f"Loaded {len(raw_df):,} orders")
@@ -1031,7 +1031,7 @@ with right:
 
 # Tabs
 _tab1, _tab2, _tab3, _tab4 = st.tabs([
-    "📊 Executive Overview", "📝 Order Intake + Recommender", "🚚 Routing (VRP‑lite)", "🧰 Equipment • ETA • Technicians",
+    "Executive Overview", "Order Intake + Recommender", "Routing (VRP‑lite)", " Equipment • ETA • Technicians",
 ])
 
 # Executive Overview
@@ -1257,7 +1257,7 @@ routes = plan["routes"]
 points = plan["points"]   # [(lat, lon), ...] 0 = depot
 labels = plan["labels"]   # ["Facility", "ORD-...", ...]
 
-if routes and points:
+  if routes and points:
     # Color palette (RGB)
     palette = [
         [230, 57, 70],    # red
@@ -1273,7 +1273,7 @@ if routes and points:
     # Build line features per route (depot -> stops -> depot)
     line_features = []
     stop_features = []
-    for r_i, route in enumerate(routes):
+  for r_i, route in enumerate(routes):
         color = palette[r_i % len(palette)]
         # Build the polyline path as list of [lon, lat] coords
         # Ensure depot start/end: if your route already includes 0 at both ends, you can skip this wrapper
