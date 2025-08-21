@@ -1304,8 +1304,8 @@ for r_i, route in enumerate(routes):
             })
 
     # Depot marker
-    depot_lat, depot_lon = float(points[0][0]), float(points[0][1])
-    depot_df = pd.DataFrame([{"position": [depot_lon, depot_lat], "label": "Facility"}])
+depot_lat, depot_lon = float(points[0][0]), float(points[0][1])
+depot_df = pd.DataFrame([{"position": [depot_lon, depot_lat], "label": "Facility"}])
 
     # DataFrames for pydeck
     lines_df = pd.DataFrame(line_features)
