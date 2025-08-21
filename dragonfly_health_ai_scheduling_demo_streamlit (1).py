@@ -1308,11 +1308,11 @@ depot_lat, depot_lon = float(points[0][0]), float(points[0][1])
 depot_df = pd.DataFrame([{"position": [depot_lon, depot_lat], "label": "Facility"}])
 
     # DataFrames for pydeck
-    lines_df = pd.DataFrame(line_features)
-    stops_df = pd.DataFrame(stop_features)
+lines_df = pd.DataFrame(line_features)
+stops_df = pd.DataFrame(stop_features)
 
     # Layers
-    line_layer = pdk.Layer(
+line_layer = pdk.Layer(
         "PathLayer",
         data=lines_df,
         get_path="path",
@@ -1321,9 +1321,9 @@ depot_df = pd.DataFrame([{"position": [depot_lon, depot_lat], "label": "Facility
         width_min_pixels=3,
         opacity=0.7,
         pickable=True,
-    )
+)
 
-    stops_layer = pdk.Layer(
+stops_layer = pdk.Layer(
         "ScatterplotLayer",
         data=stops_df,
         get_position="position",
@@ -1331,9 +1331,9 @@ depot_df = pd.DataFrame([{"position": [depot_lon, depot_lat], "label": "Facility
         get_radius=50,           # meters
         radius_min_pixels=4,
         pickable=True,
-    )
+)
 
-    depot_layer = pdk.Layer(
+depot_layer = pdk.Layer(
         "ScatterplotLayer",
         data=depot_df,
         get_position="position",
@@ -1341,23 +1341,23 @@ depot_df = pd.DataFrame([{"position": [depot_lon, depot_lat], "label": "Facility
         get_radius=80,
         radius_min_pixels=5,
         pickable=True,
-    )
+)
 
     # View centered on depot
-    view_state = pdk.ViewState(
+view_state = pdk.ViewState(
         latitude=depot_lat,
         longitude=depot_lon,
         zoom=11,
         pitch=0,
         bearing=0,
-    )
+)
 
-    r = pdk.Deck(
+r = pdk.Deck(
         layers=[line_layer, stops_layer, depot_layer],
         initial_view_state=view_state,
         tooltip={"text": "{label} {name}{route}"},
         map_style="mapbox://styles/mapbox/light-v9",  # default basemap
-    )
+)
 
     st.pydeck_chart(r, use_container_width=True)
 else:
