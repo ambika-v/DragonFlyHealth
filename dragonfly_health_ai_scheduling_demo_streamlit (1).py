@@ -717,13 +717,22 @@ except NameError:
 # Geo & Routing
 # ---------------------------
 
-def haversine_km(lat1, lon1, lat2, lon2):
-    R = 6371.0
+# def haversine_miles(lat1, lon1, lat2, lon2):
+#     R = 6371.0
+#     p1, p2 = math.radians(lat1), math.radians(lat2)
+#     dlat = math.radians(lat2-lat1); dlon = math.radians(lon2-lon1)
+#     a = math.sin(dlat/2)**2 + math.cos(p1)*math.cos(p2)*math.sin(dlon/2)**2
+#     c = 2 * math.atan2(math.sqrt(a), math.sqrt(1-a))
+#     return R*c
+    
+def haversine_miles(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
+    R = 3959.0  # radius of Earth in miles (instead of 6371 km)
     p1, p2 = math.radians(lat1), math.radians(lat2)
-    dlat = math.radians(lat2-lat1); dlon = math.radians(lon2-lon1)
-    a = math.sin(dlat/2)**2 + math.cos(p1)*math.cos(p2)*math.sin(dlon/2)**2
-    c = 2 * math.atan2(math.sqrt(a), math.sqrt(1-a))
-    return R*c
+    dlat = math.radians(lat2 - lat1)
+    dlon = math.radians(lon2 - lon1)
+    a = math.sin(dlat / 2) ** 2 + math.cos(p1) * math.cos(p2) * math.sin(dlon / 2) ** 2
+    c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
+    return R * c   # returns miles
 
 
 def build_distance_matrix(points: list[tuple[float,float]]):
@@ -731,7 +740,7 @@ def build_distance_matrix(points: list[tuple[float,float]]):
     for i in range(n):
         for j in range(n):
             if i==j: M[i][j]=0
-            else: M[i][j] = int(haversine_km(points[i][0], points[i][1], points[j][0], points[j][1]) * 1000)
+            else: M[i][j] = int(haversine_miles(points[i][0], points[i][1], points[j][0], points[j][1]) * 1000)
     return M
 
 # ---------------------------
@@ -1021,7 +1030,7 @@ def best_technicians(patient_lat: float, patient_lon: float, required_skill: str
     scored=[]
     for tech in TECHNICIANS:
         skill_ok = (tech["skill"] == required_skill) or (required_skill == "general")
-        dist = haversine_km(patient_lat, patient_lon, tech["lat"], tech["lon"])
+        dist = haversine_miles(patient_lat, patient_lon, tech["lat"], tech["lon"])
         load_penalty = tech["active_jobs"] * 0.8
         score = (1.0/(1.0+dist)) - (0.05*load_penalty) + (0.2 if tech["skill"]==required_skill else 0.0)
         scored.append({"tech":tech, "dist_km":dist, "score":score, "ok":skill_ok})
@@ -1261,7 +1270,7 @@ with _tab3:
     # choose a pool near depot
     def _nearest(df, clat, clon, k):
         d = df.copy()
-        d["dist"] = d.apply(lambda r: haversine_km(clat, clon, float(r["patient_lat"]), float(r["patient_lon"])), axis=1)
+        d["dist"] = d.apply(lambda r: haversine_miles(clat, clon, float(r["patient_lat"]), float(r["patient_lon"])), axis=1)
         return d.nsmallest(k, "dist")
 
     pool = _nearest(fac_df, depot_lat, depot_lon, min(len(fac_df), max(5, n_orders))).head(n_orders)
@@ -1468,7 +1477,7 @@ if map_rows:
 #     st.markdown(f"**Seed order:** {seed['order_id']} · equipment: `{seed['equipment_type']}` · priority: `{seed['priority']}`")
 
 #     def nearest_neighbors(df, center_lat, center_lon, k=4):
-#         df = df.copy(); df["dist"] = df.apply(lambda r: haversine_km(center_lat, center_lon, r["patient_lat"], r["patient_lon"]), axis=1)
+#         df = df.copy(); df["dist"] = df.apply(lambda r: haversine_miles(center_lat, center_lon, r["patient_lat"], r["patient_lon"]), axis=1)
 #         return df.nsmallest(k, "dist")
 
 #     neighbors = nearest_neighbors(dfh, float(seed["patient_lat"]), float(seed["patient_lon"]), k=4)
@@ -1485,7 +1494,7 @@ if map_rows:
 #     for step, label in enumerate(pretty_route, 1):
 #         st.markdown(f"{step}. **{label}**")
 
-#     total_km = sum(haversine_km(pts[route_idx[i]][0], pts[route_idx[i]][1], pts[route_idx[i+1]][0], pts[route_idx[i+1]][1]) for i in range(len(route_idx)-1))
+#     total_km = sum(haversine_miles(pts[route_idx[i]][0], pts[route_idx[i]][1], pts[route_idx[i+1]][0], pts[route_idx[i+1]][1]) for i in range(len(route_idx)-1))
 #     st.metric("Total distance (km)", f"{total_km:.1f}")
 
 #     st.markdown("#### Map (lat/lon preview)")
