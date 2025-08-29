@@ -121,13 +121,10 @@ def show_user_chip():
             st.session_state.pop(k, None)
         st.rerun()
 
-# ------ USE THE GATE ------
-login_gate()   # <-- call this BEFORE building the rest of your UI
-# (after this line, the user is signed in)
 
-# ---------------------------
-# Global CSS (escaped braces for f-strings)
-# ---------------------------
+login_gate()   # <-- call this BEFORE building the rest of your UI
+
+
 st.markdown(
     f"""
     <style>
@@ -270,7 +267,7 @@ def datetime_picker(label_prefix: str, default_dt: datetime) -> datetime:
 
 
 # ---------------------------
-# Executive Overview (visual)
+# Executive Overview 
 # ---------------------------
 
 def render_landing(df: pd.DataFrame, model_metrics: dict):
@@ -704,10 +701,9 @@ def score_slots(order_row: pd.Series, candidate_slots: list[tuple[datetime, date
             "explain":f"SLA:{sla_score:.2f} Load:{load_score:.2f} Dist:{dist_score:.2f} Pref:{pref_match:.2f} RiskPen:{risk_penalty:.2f}",
         })
     return sorted(scored, key=lambda x: x["score"], reverse=True)
-# Dragonfly Health — AI Scheduling Demo (Streamlit)
-# PART 2 of 2 — geo/routing, ETA/tech, report/export, full UI layout
 
-# If Part 1 ran in same file, these exist already; otherwise import them from Part 1
+
+
 try:
     HAS_ORTOOLS
 except NameError:
